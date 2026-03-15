@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Charges Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08111f;--bg2:#0c1828;--surface:#0f1e30;--surface2:#162538;
+  --border:#1e3248;--border2:#243c58;--text:#ddeeff;--muted:#5a7a9a;
+  --accent:#f0c040;--red:#ff4d6d;--orange:#ff8c42;--green:#3ecf8e;--blue:#4da6ff;
+  --stwo:#a78bfa;--ff:#fb7185;--perso:#34d399;--credit:#60c6ff;
+}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{
+  content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse 80% 50% at 20% 0%,rgba(30,70,140,0.25) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%,rgba(10,40,100,0.2) 0%,transparent 60%);
+  pointer-events:none;z-index:0;
+}
+
+#app{position:relative;z-index:1;max-width:700px;margin:0 auto;padding:20px 16px 100px}
+
+/* HEADER */
+.hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.hdr-logo{font-size:20px;font-weight:800;letter-spacing:-0.5px}
+.hdr-logo span{color:var(--accent)}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.sync-pill{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:20px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s}
+.sync-pill:hover{border-color:var(--accent);color:var(--accent)}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+.sdot.spin{background:var(--orange);animation:blink .7s infinite}
+.sdot.err{background:var(--red)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.add-wrap{position:relative}
+.add-btn{font-family:'Syne',sans-serif;font-size:12px;font-weight:800;background:var(--accent);color:#0d0f14;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;transition:opacity .2s;display:flex;align-items:center;gap:5px}
+.add-btn:hover{opacity:.85}
+.add-menu{position:absolute;top:calc(100% + 8px);right:0;background:var(--surface2);border:1px solid var(--border2);border-radius:14px;padding:6px;min-width:180px;box-shadow:0 12px 40px rgba(0,0,0,0.5);z-index:50;display:none;animation:fadeUp .15s ease}
+.add-menu.open{display:block}
+.add-menu-item{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;padding:10px 14px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s;color:var(--text)}
+.add-menu-item:hover{background:var(--border)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ALERTS */
+.alert-banner{border-radius:12px;padding:13px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700}
+.alert-banner.red{background:rgba(255,77,109,0.1);border:1px solid rgba(255,77,109,0.3);color:var(--red)}
+.alert-banner.orange{background:rgba(255,140,66,0.1);border:1px solid rgba(255,140,66,0.3);color:var(--orange)}
+.pulse{width:9px;height:9px;border-radius:50%;flex-shrink:0;animation:pulse 1.5s ease-in-out infinite}
+.pulse.red{background:var(--red)}.pulse.orange{background:var(--orange)}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.5}}
+
+/* KPIs */
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;position:relative;overflow:hidden}
+.kpi::after{content:'';position:absolute;top:-12px;right:-12px;width:55px;height:55px;border-radius:50%;opacity:.07}
+.kpi.red::after{background:var(--red)}.kpi.orange::after{background:var(--orange)}.kpi.blue::after{background:var(--blue)}.kpi.green::after{background:var(--green)}
+.kpi-lbl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.kpi-val{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;letter-spacing:-0.5px}
+.kpi.red .kpi-val{color:var(--red)}.kpi.orange .kpi-val{color:var(--orange)}.kpi.blue .kpi-val{color:var(--blue)}.kpi.green .kpi-val{color:var(--green)}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+/* MAIN TABS (vue) */
+.view-tabs{display:flex;gap:3px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px}
+.view-tab{flex:1;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;padding:9px 4px;border:none;background:transparent;color:var(--muted);border-radius:9px;cursor:pointer;transition:all .15s;text-align:center}
+.view-tab.active{background:var(--accent);color:#0d0f14}
+.view-tab:hover:not(.active){color:var(--text)}
+
+/* CAT TABS */
+.cat-tabs{display:flex;gap:3px;margin-bottom:18px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:4px}
+.cat-tab{flex:1;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;padding:7px 2px;border:none;background:transparent;color:var(--muted);border-radius:8px;cursor:pointer;transition:all .15s;text-align:center;white-space:nowrap}
+.cat-tab.active{background:var(--accent);color:#0d0f14}
+.cat-tab.active.t-stwo{background:var(--stwo);color:#fff}
+.cat-tab.active.t-ff{background:var(--ff);color:#fff}
+.cat-tab.active.t-perso{background:var(--perso);color:#0d2010}
+.cat-tab:hover:not(.active){color:var(--text)}
+
+/* MONTH NAV */
+.month-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px}
+.mnav-btn{width:30px;height:30px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color .15s}
+.mnav-btn:hover{border-color:var(--accent)}
+.month-lbl{font-size:15px;font-weight:800;letter-spacing:-0.3px}
+.month-today-btn{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:8px;cursor:pointer;transition:all .15s}
+.month-today-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* MONTH SUMMARY BAR */
+.month-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.ms-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center}
+.ms-lbl{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.ms-val{font-family:'DM Mono',monospace;font-size:15px;font-weight:500}
+.ms-val.red{color:var(--red)}.ms-val.green{color:var(--green)}.ms-val.orange{color:var(--orange)}
+
+/* CHARGE CARDS */
+.charges{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;transition:border-color .2s;animation:fadeIn .2s ease}
+.card:hover{border-color:var(--border2)}
+.card.overdue{border-left:3px solid var(--red) !important}
+.card.soon{border-left:3px solid var(--orange) !important}
+.card.paid{opacity:.45}
+.card.cat-stwo{border-left:3px solid var(--stwo)}
+.card.cat-ff{border-left:3px solid var(--ff)}
+.card.cat-perso{border-left:3px solid var(--perso)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.card-name{font-size:15px;font-weight:800;letter-spacing:-0.3px}
+.card-amount{font-family:'DM Mono',monospace;font-size:16px;font-weight:500;color:var(--accent);flex-shrink:0}
+.card-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tag{font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;letter-spacing:.3px}
+.tag.stwo{background:rgba(167,139,250,0.12);color:var(--stwo)}
+.tag.ff{background:rgba(251,113,133,0.12);color:var(--ff)}
+.tag.perso{background:rgba(52,211,153,0.12);color:var(--perso)}
+.tag.freq{background:rgba(90,122,154,0.12);color:var(--muted)}
+.tag.credit-tag{background:rgba(96,198,255,0.1);color:var(--credit)}
+.status-tag{font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px}
+.st-overdue{background:rgba(255,77,109,0.12);color:var(--red)}
+.st-soon{background:rgba(255,140,66,0.12);color:var(--orange)}
+.st-ok{background:rgba(62,207,142,0.08);color:var(--green)}
+.st-paid{background:rgba(90,122,154,0.1);color:var(--muted)}
+.card-date{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;margin-top:6px}
+.card-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.iBtn{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;transition:all .15s}
+.iBtn.pay:hover{border-color:var(--green);color:var(--green)}
+.iBtn.edit:hover{border-color:var(--blue);color:var(--blue)}
+.iBtn.del:hover{border-color:var(--red);color:var(--red)}
+.iBtn.unpay:hover{color:var(--text)}
+
+/* CREDIT CARDS */
+.credit-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:8px;border-left:3px solid var(--credit);animation:fadeIn .2s ease}
+.credit-card:hover{border-color:rgba(96,198,255,0.35)}
+.credit-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.credit-name{font-size:15px;font-weight:800;letter-spacing:-0.3px}
+.credit-monthly{font-family:'DM Mono',monospace;font-size:16px;font-weight:500;color:var(--credit);flex-shrink:0}
+.credit-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.progress-wrap{margin-bottom:8px}
+.progress-label{display:flex;justify-content:space-between;margin-bottom:5px}
+.progress-left{font-size:11px;color:var(--muted)}
+.progress-right{font-family:'DM Mono',monospace;font-size:11px;color:var(--credit)}
+.progress-track{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.progress-bar{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--credit),rgba(96,198,255,0.4));transition:width .5s ease}
+.credit-detail{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.credit-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;padding-top:10px;border-top:1px solid var(--border)}
+
+/* TOTAL BAR */
+.total-bar{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:4px}
+.total-lbl{font-size:12px;font-weight:600;color:var(--muted)}
+.total-val{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:var(--accent)}
+
+/* ── ANNUAL VIEW ── */
+.year-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px}
+.year-lbl{font-size:16px;font-weight:800;letter-spacing:-0.5px}
+
+.annual-table{width:100%;border-collapse:separate;border-spacing:0 6px;margin-bottom:16px}
+.annual-table thead th{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);padding:6px 12px;text-align:left}
+.annual-table thead th:not(:first-child){text-align:right}
+.annual-row{background:var(--surface);transition:background .15s;cursor:default}
+.annual-row:hover{background:var(--surface2)}
+.annual-row td{padding:12px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.annual-row td:first-child{border-left:1px solid var(--border);border-radius:12px 0 0 12px;font-size:13px;font-weight:700}
+.annual-row td:last-child{border-right:1px solid var(--border);border-radius:0 12px 12px 0}
+.annual-row.current-month td{border-color:rgba(240,192,64,0.3);background:rgba(240,192,64,0.04)}
+.annual-row.current-month td:first-child{border-left-color:var(--accent)}
+.ann-month{font-size:13px;font-weight:700}
+.ann-num{font-family:'DM Mono',monospace;font-size:13px;text-align:right}
+.ann-num.due{color:var(--text)}
+.ann-num.paid{color:var(--green)}
+.ann-num.remaining{color:var(--orange)}
+.ann-num.zero{color:var(--muted)}
+.ann-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:6px}
+.ann-badge.current{background:rgba(240,192,64,0.15);color:var(--accent)}
+.ann-badge.done{background:rgba(62,207,142,0.1);color:var(--green)}
+
+.annual-total-row td{padding:14px 12px;border-top:2px solid var(--border2);font-weight:800;font-size:13px}
+.annual-total-row td:first-child{color:var(--text)}
+
+/* ANNUAL DETAIL BREAKDOWN */
+.annual-breakdown{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px}
+.breakdown-title{font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.breakdown-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+.breakdown-row:last-child{border-bottom:none}
+.breakdown-name{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
+.breakdown-amt{font-family:'DM Mono',monospace;font-size:13px;color:var(--accent)}
+
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sec-title{font-size:14px;font-weight:800;letter-spacing:-0.3px;display:flex;align-items:center;gap:8px}
+.nbadge{font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(240,192,64,0.12);color:var(--accent)}
+
+.empty{text-align:center;padding:36px 20px;color:var(--muted);font-size:13px;border:1px dashed var(--border);border-radius:14px}
+.empty-icon{font-size:28px;margin-bottom:10px}
+
+/* MODALS */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(8px);z-index:200;display:none;align-items:flex-end;justify-content:center}
+@media(min-width:500px){.overlay{align-items:center;padding:20px}}
+.overlay.open{display:flex}
+.modal{background:var(--surface2);border:1px solid var(--border2);border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-width:500px;animation:slideUp .25s ease;max-height:94vh;overflow-y:auto}
+@media(min-width:500px){.modal{border-radius:20px;padding:28px}}
+@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+.drag{width:40px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 18px;display:block}
+@media(min-width:500px){.drag{display:none}}
+.modal h2{font-size:17px;font-weight:800;margin-bottom:6px;letter-spacing:-0.3px}
+.modal-sub{font-size:12px;color:var(--muted);margin-bottom:18px}
+.fgrp{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.fgrp label{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.fgrp input,.fgrp select{font-family:'Syne',sans-serif;font-size:14px;background:var(--surface);border:1.5px solid var(--border);color:var(--text);padding:11px 13px;border-radius:10px;outline:none;transition:border-color .2s;width:100%;-webkit-appearance:none}
+.fgrp input:focus,.fgrp select:focus{border-color:var(--accent)}
+.fgrp select option{background:var(--surface2)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.btn-cancel{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;background:transparent;border:1px solid var(--border);color:var(--muted);padding:11px 20px;border-radius:10px;cursor:pointer}
+.btn-save{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;background:var(--accent);color:#0d0f14;border:none;padding:11px 24px;border-radius:10px;cursor:pointer;transition:opacity .2s}
+.btn-save:hover{opacity:.88}
+.credit-preview{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:var(--muted);line-height:1.8}
+.credit-preview b{color:var(--credit);font-family:'DM Mono',monospace}
+
+/* LOADING */
+.loading{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.loading-logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}
+.loading-logo span{color:var(--accent)}
+.loading-dots{display:flex;gap:6px}
+.loading-dots i{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:ldot .9s ease-in-out infinite}
+.loading-dots i:nth-child(2){animation-delay:.15s}
+.loading-dots i:nth-child(3){animation-delay:.3s}
+@keyframes ldot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-size:12px;font-weight:700;padding:10px 20px;border-radius:25px;z-index:400;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="loading-logo">Charges<span>.</span>Pro</div>
+  <div class="loading-dots"><i></i><i></i><i></i></div>
+</div>
+
+<div id="app" style="display:none">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hdr-logo">Charges<span>.</span>Pro</div>
+    <div class="hdr-right">
+      <div class="sync-pill" onclick="syncAll()"><div class="sdot" id="sdot"></div>Sync</div>
+      <div class="add-wrap">
+        <button class="add-btn" onclick="toggleAddMenu()">＋ Ajouter ▾</button>
+        <div class="add-menu" id="add-menu">
+          <div class="add-menu-item" onclick="openChargeModal();closeAddMenu()">📋 Charge fixe</div>
+          <div class="add-menu-item" onclick="openCreditModal();closeAddMenu()">🏦 Crédit bancaire</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERTS -->
+  <div id="alerts"></div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi red"><div class="kpi-lbl">En retard</div><div class="kpi-val" id="k-overdue">—</div><div class="kpi-sub">non payées</div></div>
+    <div class="kpi orange"><div class="kpi-lbl">Cette semaine</div><div class="kpi-val" id="k-soon">—</div><div class="kpi-sub">à payer (7j)</div></div>
+    <div class="kpi blue"><div class="kpi-lbl">Ce mois</div><div class="kpi-val" id="k-month">—</div><div class="kpi-sub">charges dues</div></div>
+    <div class="kpi green"><div class="kpi-lbl">Équiv./mois</div><div class="kpi-val" id="k-total">—</div><div class="kpi-sub">tout compris</div></div>
+  </div>
+
+  <!-- VIEW TABS -->
+  <div class="view-tabs">
+    <button class="view-tab active" onclick="setView('month',this)">📅 Vue Mois</button>
+    <button class="view-tab" onclick="setView('annual',this)">📊 Vue Annuelle</button>
+  </div>
+
+  <!-- ══ MONTH VIEW ══ -->
+  <div id="view-month">
+    <!-- Cat tabs -->
+    <div class="cat-tabs">
+      <button class="cat-tab active" onclick="setCat('all',this)">Toutes</button>
+      <button class="cat-tab t-stwo" onclick="setCat('stwo',this)">S-Two</button>
+      <button class="cat-tab t-ff" onclick="setCat('ff',this)">FF</button>
+      <button class="cat-tab t-perso" onclick="setCat('perso',this)">Perso</button>
+    </div>
+
+    <!-- Month nav -->
+    <div class="month-nav">
+      <button class="mnav-btn" onclick="moveMonth(-1)">‹</button>
+      <div>
+        <div class="month-lbl" id="month-label"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="month-today-btn" onclick="goToday()">Aujourd'hui</button>
+        <button class="mnav-btn" onclick="moveMonth(1)">›</button>
+      </div>
+    </div>
+
+    <!-- Month summary -->
+    <div class="month-summary">
+      <div class="ms-card">
+        <div class="ms-lbl">Total dû</div>
+        <div class="ms-val orange" id="ms-due">—</div>
+      </div>
+      <div class="ms-card">
+        <div class="ms-lbl">Payé</div>
+        <div class="ms-val green" id="ms-paid">—</div>
+      </div>
+      <div class="ms-card">
+        <div class="ms-lbl">Restant</div>
+        <div class="ms-val red" id="ms-remaining">—</div>
+      </div>
+    </div>
+
+    <!-- Credits this month -->
+    <div id="month-credits-section" style="display:none">
+      <div class="sec-hdr">
+        <div class="sec-title">🏦 Crédits <span class="nbadge" id="month-credit-count">0</span></div>
+      </div>
+      <div id="month-credits-list"></div>
+    </div>
+
+    <!-- Charges this month -->
+    <div class="sec-hdr">
+      <div class="sec-title">Charges <span class="nbadge" id="month-count">0</span></div>
+      <select style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:5px 9px;border-radius:8px;outline:none;cursor:pointer" id="month-sort" onchange="renderMonthView()">
+        <option value="date">Par date</option>
+        <option value="amount">Par montant</option>
+        <option value="status">Par statut</option>
+      </select>
+    </div>
+    <div class="charges" id="month-charges-list"></div>
+
+    <div class="total-bar">
+      <div class="total-lbl">Total du mois (charges + crédits)</div>
+      <div class="total-val" id="month-total">—</div>
+    </div>
+  </div>
+
+  <!-- ══ ANNUAL VIEW ══ -->
+  <div id="view-annual" style="display:none">
+    <div class="year-nav">
+      <button class="mnav-btn" onclick="moveYear(-1)">‹</button>
+      <div class="year-lbl" id="year-label"></div>
+      <button class="mnav-btn" onclick="moveYear(1)">›</button>
+    </div>
+
+    <!-- Annual table -->
+    <div class="sec-hdr"><div class="sec-title">Récapitulatif mensuel</div></div>
+    <table class="annual-table" id="annual-table"></table>
+
+    <!-- Breakdown by charge -->
+    <div class="sec-hdr" style="margin-top:20px"><div class="sec-title">Détail par charge</div></div>
+    <div class="annual-breakdown" id="annual-breakdown"></div>
+  </div>
+
+</div>
+
+<!-- CHARGE MODAL -->
+<div class="overlay" id="charge-overlay">
+  <div class="modal">
+    <span class="drag"></span>
+    <h2 id="charge-modal-title">Nouvelle charge fixe</h2>
+    <p class="modal-sub">Mensuelle, trimestrielle, annuelle ou ponctuelle</p>
+    <div class="frow">
+      <div class="fgrp"><label>Nom</label><input type="text" id="f-name" placeholder="Ex: Loyer bureau"></div>
+      <div class="fgrp"><label>Montant (DH)</label><input type="number" id="f-amount" placeholder="0" step="1" inputmode="numeric"></div>
+    </div>
+    <div class="frow">
+      <div class="fgrp"><label>Catégorie</label>
+        <select id="f-cat">
+          <option value="stwo">S-Two</option>
+          <option value="ff">FF</option>
+          <option value="perso">Perso</option>
+        </select>
+      </div>
+      <div class="fgrp"><label>Fréquence</label>
+        <select id="f-freq">
+          <option value="monthly">Mensuelle</option>
+          <option value="quarterly">Trimestrielle</option>
+          <option value="annual">Annuelle</option>
+          <option value="once">Ponctuelle</option>
+        </select>
+      </div>
+    </div>
+    <div class="frow">
+      <div class="fgrp"><label>Prochain paiement</label><input type="date" id="f-date"></div>
+      <div class="fgrp"><label>Alerte avant (j)</label><input type="number" id="f-alert" value="7" min="1" max="30" inputmode="numeric"></div>
+    </div>
+    <div class="fgrp"><label>Notes</label><input type="text" id="f-notes" placeholder="Optionnel…"></div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeChargeModal()">Annuler</button>
+      <button class="btn-save" onclick="saveCharge()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- CREDIT MODAL -->
+<div class="overlay" id="credit-overlay">
+  <div class="modal">
+    <span class="drag"></span>
+    <h2 id="credit-modal-title">Nouveau crédit bancaire</h2>
+    <p class="modal-sub">Les mensualités sont générées automatiquement</p>
+    <div class="frow">
+      <div class="fgrp"><label>Nom du crédit</label><input type="text" id="c-name" placeholder="Ex: Crédit voiture"></div>
+      <div class="fgrp"><label>Banque</label><input type="text" id="c-bank" placeholder="Ex: Attijariwafa"></div>
+    </div>
+    <div class="frow">
+      <div class="fgrp"><label>Mensualité (DH)</label><input type="number" id="c-amount" placeholder="0" step="1" inputmode="numeric" oninput="updateCreditPreview()"></div>
+      <div class="fgrp"><label>Durée (mois)</label><input type="number" id="c-duration" placeholder="Ex: 60" step="1" inputmode="numeric" oninput="updateCreditPreview()"></div>
+    </div>
+    <div class="frow">
+      <div class="fgrp"><label>1er prélèvement</label><input type="date" id="c-start" oninput="updateCreditPreview()"></div>
+      <div class="fgrp"><label>Catégorie</label>
+        <select id="c-cat">
+          <option value="stwo">S-Two</option>
+          <option value="ff">FF</option>
+          <option value="perso">Perso</option>
+        </select>
+      </div>
+    </div>
+    <div class="fgrp"><label>Alerte avant (j)</label><input type="number" id="c-alert" value="5" min="1" max="30" inputmode="numeric"></div>
+    <div class="credit-preview" id="credit-preview">Remplis les champs pour voir un résumé…</div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeCreditModal()">Annuler</button>
+      <button class="btn-save" onclick="saveCredit()">Générer les échéances</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAY CONFIRM MODAL -->
+<div class="overlay" id="pay-overlay">
+  <div class="modal" style="max-width:380px">
+    <span class="drag"></span>
+    <h2 style="font-size:15px;margin-bottom:4px">Confirmer le paiement</h2>
+    <p class="modal-sub" id="pay-modal-sub">Montant estimé : —</p>
+    <div class="fgrp">
+      <label>Montant réellement payé (DH)</label>
+      <input type="number" id="pay-real-amount" placeholder="0" step="1" inputmode="numeric"
+        style="font-size:18px;font-weight:700;text-align:center;color:var(--accent)">
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;text-align:center">
+      Laisse tel quel si le montant est correct
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closePayModal()">Annuler</button>
+      <button class="btn-save" onclick="confirmPay()">✓ Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbwj9hSaoJGx3x4nhkmqDBodYykWxb_Iv8RrGE4XIwDLghBWV0O-C5JDA_qKbwZLtqp0Pw/exec';
+const LOCAL_KEY = 'cpro_v5';
+
+let charges = [], credits = [], editChargeId = null, editCreditId = null;
+let activeCat = 'all', activeView = 'month';
+let viewMonth, viewYear, annualYear;
+
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+viewMonth = TODAY.getMonth();
+viewYear = TODAY.getFullYear();
+annualYear = TODAY.getFullYear();
+
+const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MONTHS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const FREQ_LBL = {monthly:'Mensuel',quarterly:'Trimestriel',annual:'Annuel',once:'Ponctuel'};
+const CAT_LBL = {stwo:'S-Two',ff:'FF',perso:'Perso'};
+const CAT_ICON = {stwo:'🔷',ff:'🔴',perso:'🏠'};
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  const cached = localStorage.getItem(LOCAL_KEY);
+  if (cached) { const d=JSON.parse(cached); charges=d.charges||[]; credits=d.credits||[]; showApp(); render(); }
+  await syncAll();
+  if (!cached) showApp();
+});
+function showApp(){ document.getElementById('loading').style.display='none'; document.getElementById('app').style.display='block'; }
+
+// ── SYNC ─────────────────────────────────────────────────────────────────
+async function syncAll(){
+  setSyncState('spin');
+  try{
+    const r=await fetch(API+'?action=read&t='+Date.now());
+    const d=await r.json();
+    if(d.error) throw new Error(d.error);
+    charges=d.charges||[]; credits=d.credits||[];
+    saveLocal(); setSyncState('ok'); toast('✓ Synchronisé'); render();
+  }catch(e){
+    setSyncState('err'); toast('⚠️ Hors ligne — données locales');
+    const c=localStorage.getItem(LOCAL_KEY);
+    if(c&&!charges.length){const d=JSON.parse(c);charges=d.charges||[];credits=d.credits||[];render();}
+  }
+}
+async function push(){
+  saveLocal(); setSyncState('spin');
+  try{
+    const r=await fetch(API,{method:'POST',body:JSON.stringify({action:'write',charges,credits}),headers:{'Content-Type':'text/plain'}});
+    const d=await r.json();
+    if(d.error) throw new Error(d.error);
+    setSyncState('ok'); toast('✓ Sauvegardé');
+  }catch(e){ setSyncState('err'); toast('⚠️ Sauvegardé localement'); }
+}
+function saveLocal(){ localStorage.setItem(LOCAL_KEY,JSON.stringify({charges,credits})); }
+function setSyncState(s){ document.getElementById('sdot').className='sdot'+(s==='spin'?' spin':s==='err'?' err':''); }
+
+// ── UTILS ─────────────────────────────────────────────────────────────────
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+function daysUntil(ds){ const d=new Date(ds); d.setHours(0,0,0,0); return Math.round((d-TODAY)/86400000); }
+function chargeStatus(c){
+  if(c.paid) return 'paid';
+  const d=daysUntil(c.nextDate);
+  if(d<0) return 'overdue';
+  if(d<=(c.alert||7)) return 'soon';
+  return 'ok';
+}
+function fDH(n){ return new Intl.NumberFormat('fr-MA',{minimumFractionDigits:0,maximumFractionDigits:0}).format(n||0)+' DH'; }
+function fDate(ds){ if(!ds) return '—'; return new Date(ds).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}); }
+function fDateShort(ds){ if(!ds) return '—'; return new Date(ds).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}); }
+function moEq(c){
+  if(c.freq==='annual') return (c.amount||0)/12;
+  if(c.freq==='quarterly') return (c.amount||0)/3;
+  return c.amount||0;
+}
+
+// ── CREDIT HELPERS ────────────────────────────────────────────────────────
+function creditOccurrences(cr){
+  const occ=[];
+  const start=new Date(cr.startDate);
+  for(let i=0;i<cr.duration;i++){
+    const d=new Date(start.getFullYear(),start.getMonth()+i,start.getDate());
+    occ.push(d.toISOString().split('T')[0]);
+  }
+  return occ;
+}
+function creditCurrentState(cr){
+  const occ=creditOccurrences(cr);
+  const paid=cr.paidMonths||[];
+  const paidCount=paid.length;
+  const remaining=cr.duration-paidCount;
+  const nextDate=occ.find(d=>!paid.includes(d))||occ[occ.length-1];
+  const endDate=occ[occ.length-1];
+  const pct=Math.round((paidCount/cr.duration)*100);
+  return{occ,paidCount,remaining,nextDate,endDate,pct};
+}
+function creditStatus(cr){
+  const{nextDate,remaining}=creditCurrentState(cr);
+  if(remaining<=0) return 'paid';
+  const d=daysUntil(nextDate);
+  if(d<0) return 'overdue';
+  if(d<=(cr.alert||5)) return 'soon';
+  return 'ok';
+}
+
+// Get charges due in a specific month/year
+function chargesForMonth(m, y){
+  return charges.filter(c=>{
+    if(!c.nextDate) return false;
+    // For monthly: check if there's an occurrence in this month
+    // We check based on frequency
+    const nd=new Date(c.nextDate);
+    if(c.freq==='once'){
+      return nd.getMonth()===m && nd.getFullYear()===y;
+    }
+    if(c.freq==='monthly'){
+      // any month >= startDate month
+      const startMonths = nd.getFullYear()*12+nd.getMonth();
+      const targetMonths = y*12+m;
+      return targetMonths >= startMonths;
+    }
+    if(c.freq==='quarterly'){
+      const startMonths = nd.getFullYear()*12+nd.getMonth();
+      const targetMonths = y*12+m;
+      return targetMonths >= startMonths && (targetMonths-startMonths)%3===0;
+    }
+    if(c.freq==='annual'){
+      return nd.getMonth()===m && y>=nd.getFullYear();
+    }
+    return false;
+  });
+}
+
+function creditsForMonth(m, y){
+  return credits.filter(cr=>{
+    const{occ}=creditCurrentState(cr);
+    return occ.some(d=>{ const nd=new Date(d); return nd.getMonth()===m && nd.getFullYear()===y; });
+  });
+}
+
+function isCreditPaidForMonth(cr, m, y){
+  const{occ}=creditCurrentState(cr);
+  const dateForMonth=occ.find(d=>{ const nd=new Date(d); return nd.getMonth()===m && nd.getFullYear()===y; });
+  return dateForMonth ? (cr.paidMonths||[]).includes(dateForMonth) : false;
+}
+
+function creditDateForMonth(cr, m, y){
+  const{occ}=creditCurrentState(cr);
+  return occ.find(d=>{ const nd=new Date(d); return nd.getMonth()===m && nd.getFullYear()===y; });
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function render(){ renderAlerts(); renderKPIs(); if(activeView==='month') renderMonthView(); else renderAnnualView(); }
+
+function renderAlerts(){
+  const ov_c=charges.filter(c=>chargeStatus(c)==='overdue');
+  const so_c=charges.filter(c=>chargeStatus(c)==='soon');
+  const ov_cr=credits.filter(cr=>creditStatus(cr)==='overdue');
+  const so_cr=credits.filter(cr=>creditStatus(cr)==='soon');
+  const ovCount=ov_c.length+ov_cr.length;
+  const soCount=so_c.length+so_cr.length;
+  const ovAmt=ov_c.reduce((s,c)=>s+(c.amount||0),0)+ov_cr.reduce((s,c)=>s+(c.amount||0),0);
+  const soAmt=so_c.reduce((s,c)=>s+(c.amount||0),0)+so_cr.reduce((s,c)=>s+(c.amount||0),0);
+  let h='';
+  if(ovCount) h+=`<div class="alert-banner red"><div class="pulse red"></div>${ovCount} paiement(s) EN RETARD — ${fDH(ovAmt)} à régler !</div>`;
+  if(soCount) h+=`<div class="alert-banner orange"><div class="pulse orange"></div>${soCount} paiement(s) dans les 7 prochains jours — ${fDH(soAmt)}</div>`;
+  document.getElementById('alerts').innerHTML=h;
+}
+
+function renderKPIs(){
+  const ov=charges.filter(c=>chargeStatus(c)==='overdue').length+credits.filter(cr=>creditStatus(cr)==='overdue').length;
+  const so=charges.filter(c=>chargeStatus(c)==='soon').length+credits.filter(cr=>creditStatus(cr)==='soon').length;
+  const m=TODAY.getMonth(), y=TODAY.getFullYear();
+  const mCharges=chargesForMonth(m,y).filter(c=>activeCat==='all'||c.cat===activeCat).reduce((s,c)=>s+(c.amount||0),0);
+  const mCredits=creditsForMonth(m,y).filter(cr=>activeCat==='all'||cr.cat===activeCat).reduce((s,cr)=>s+(cr.amount||0),0);
+  const tot=charges.filter(c=>!c.paid).reduce((s,c)=>s+moEq(c),0)+credits.reduce((s,cr)=>s+(cr.amount||0),0);
+  document.getElementById('k-overdue').textContent=ov;
+  document.getElementById('k-soon').textContent=so;
+  document.getElementById('k-month').textContent=fDH(mCharges+mCredits);
+  document.getElementById('k-total').textContent=fDH(tot);
+}
+
+// ── MONTH VIEW ────────────────────────────────────────────────────────────
+function renderMonthView(){
+  document.getElementById('month-label').textContent=MONTHS_FR[viewMonth]+' '+viewYear;
+
+  let monthCharges=chargesForMonth(viewMonth,viewYear);
+  let monthCreds=creditsForMonth(viewMonth,viewYear);
+
+  if(activeCat!=='all'){
+    monthCharges=monthCharges.filter(c=>c.cat===activeCat);
+    monthCreds=monthCreds.filter(cr=>cr.cat===activeCat);
+  }
+
+  // compute totals — use real paid amounts when available
+  const monthKey=viewYear+'-'+String(viewMonth+1).padStart(2,'0');
+
+  const totalDue=monthCharges.reduce((s,c)=>s+(c.amount||0),0)+monthCreds.reduce((s,cr)=>s+(cr.amount||0),0);
+
+  // paid: use realPayments[monthKey] if available, otherwise estimated amount
+  const paidChargesAmt=monthCharges.filter(c=>{
+    if(c.freq==='monthly'||c.freq==='quarterly'||c.freq==='annual'){
+      if(!c.lastPaid) return false;
+      const lp=new Date(c.lastPaid);
+      return lp.getMonth()===viewMonth && lp.getFullYear()===viewYear;
+    }
+    return c.paid;
+  }).reduce((s,c)=>{
+    const real=(c.realPayments||{})[monthKey];
+    return s+(real!=null?real:(c.amount||0));
+  },0);
+
+  const paidCreditsAmt=monthCreds.filter(cr=>isCreditPaidForMonth(cr,viewMonth,viewYear)).reduce((s,cr)=>{
+    const dateForMonth=creditDateForMonth(cr,viewMonth,viewYear);
+    const real=dateForMonth?(cr.realPayments||{})[dateForMonth]:null;
+    return s+(real!=null?real:(cr.amount||0));
+  },0);
+  const totalPaid=paidChargesAmt+paidCreditsAmt;
+  const totalRemaining=totalDue-totalPaid;
+
+  document.getElementById('ms-due').textContent=fDH(totalDue);
+  document.getElementById('ms-paid').textContent=fDH(totalPaid);
+  document.getElementById('ms-remaining').textContent=fDH(Math.max(0,totalRemaining));
+  document.getElementById('month-total').textContent=fDH(totalDue);
+
+  // Credits this month
+  const credSec=document.getElementById('month-credits-section');
+  document.getElementById('month-credit-count').textContent=monthCreds.length;
+  if(monthCreds.length){
+    credSec.style.display='block';
+    const ST_CLS={overdue:'st-overdue',soon:'st-soon',ok:'st-ok',paid:'st-paid'};
+    document.getElementById('month-credits-list').innerHTML=monthCreds.map(cr=>{
+      const dateForMonth=creditDateForMonth(cr,viewMonth,viewYear);
+      const isPaid=isCreditPaidForMonth(cr,viewMonth,viewYear);
+      const{paidCount,remaining}=creditCurrentState(cr);
+      const diff=dateForMonth?daysUntil(dateForMonth):0;
+      const st=isPaid?'paid':diff<0?'overdue':diff<=(cr.alert||5)?'soon':'ok';
+      const diffTxt=isPaid?'✓ Payé':diff<0?`⚠ ${Math.abs(diff)}j retard`:diff===0?'⏰ Aujourd\'hui':`⏰ dans ${diff}j`;
+      const paidBtn=!isPaid
+        ?`<button class="iBtn pay" onclick="markCreditPaid('${cr.id}','${dateForMonth}')">✓ Payé</button>`
+        :`<span style="font-size:11px;color:var(--green)">✓ Payé</span>`;
+      return `<div class="credit-card" style="margin-bottom:8px">
+        <div class="credit-top">
+          <div><div class="credit-name">${cr.name}</div>${cr.bank?`<div style="font-size:11px;color:var(--muted);margin-top:2px">🏦 ${cr.bank}</div>`:''}</div>
+          <div class="credit-monthly">${fDH(cr.amount)}<span style="font-size:11px;color:var(--muted)">/mois</span></div>
+        </div>
+        <div class="credit-meta">
+          <span class="tag ${cr.cat}">${CAT_ICON[cr.cat]} ${CAT_LBL[cr.cat]}</span>
+          <span class="tag credit-tag">💳 Crédit</span>
+          <span class="status-tag ${ST_CLS[st]}">${diffTxt}</span>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:8px">
+          📅 ${fDateShort(dateForMonth)} &nbsp;·&nbsp; ${paidCount}/${cr.duration} mensualités &nbsp;·&nbsp; ${remaining} restantes
+        </div>
+        <div class="credit-actions">${paidBtn}
+          <button class="iBtn edit" onclick="openEditCreditModal('${cr.id}')">✎</button>
+          <button class="iBtn del" onclick="delCredit('${cr.id}')">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  } else { credSec.style.display='none'; }
+
+  // Sort charges
+  const sort=document.getElementById('month-sort').value;
+  const sOrd={overdue:0,soon:1,ok:2,paid:3};
+  monthCharges.sort((a,b)=>{
+    if(sort==='status') return sOrd[chargeStatus(a)]-sOrd[chargeStatus(b)];
+    if(sort==='amount') return (b.amount||0)-(a.amount||0);
+    return new Date(a.nextDate||0)-new Date(b.nextDate||0);
+  });
+
+  document.getElementById('month-count').textContent=monthCharges.length;
+
+  if(!monthCharges.length && !monthCreds.length){
+    document.getElementById('month-charges-list').innerHTML=`<div class="empty"><div class="empty-icon">📋</div>Aucune charge ce mois-ci.</div>`;
+    return;
+  }
+  if(!monthCharges.length){
+    document.getElementById('month-charges-list').innerHTML=`<div class="empty" style="padding:20px">Aucune charge fixe ce mois-ci.</div>`;
+    return;
+  }
+
+  const ST_CLS={overdue:'st-overdue',soon:'st-soon',ok:'st-ok',paid:'st-paid'};
+  document.getElementById('month-charges-list').innerHTML=monthCharges.map(c=>{
+    const st=chargeStatus(c);
+    const diff=daysUntil(c.nextDate);
+    const diffTxt=st==='overdue'?`⚠ ${Math.abs(diff)}j retard`:st==='soon'?`⏰ dans ${diff}j`:st==='paid'?'✓ Payé':'✓ OK';
+    const rowCls=(st==='overdue'?'overdue':st==='soon'?'soon':st==='paid'?'paid':'')+' cat-'+(c.cat||'perso');
+    const paidBtn=st!=='paid'
+      ?`<button class="iBtn pay" onclick="markPaid('${c.id}')">✓ Payé</button>`
+      :`<button class="iBtn unpay" onclick="unmarkPaid('${c.id}')">↩</button>`;
+    // show real paid amount if different from estimate
+    const realAmt=(c.realPayments||{})[monthKey];
+    const amountDisplay=realAmt!=null && realAmt!==c.amount
+      ?`<div style="text-align:right">
+          <div class="card-amount" style="text-decoration:line-through;opacity:.4;font-size:13px">${fDH(c.amount)}</div>
+          <div class="card-amount" style="color:var(--green)">${fDH(realAmt)}</div>
+        </div>`
+      :`<div class="card-amount">${fDH(c.amount)}</div>`;
+    return `<div class="card ${rowCls}">
+      <div class="card-top">
+        <div class="card-name">${c.name}</div>
+        ${amountDisplay}
+      </div>
+      <div class="card-meta">
+        <span class="tag ${c.cat}">${CAT_ICON[c.cat]} ${CAT_LBL[c.cat]}</span>
+        <span class="tag freq">${FREQ_LBL[c.freq]||c.freq}</span>
+        <span class="status-tag ${ST_CLS[st]}">${diffTxt}</span>
+      </div>
+      <div class="card-date">📅 ${fDate(c.nextDate)}${c.notes?' · '+c.notes:''}</div>
+      <div class="card-actions">
+        ${paidBtn}
+        <button class="iBtn edit" onclick="editCharge('${c.id}')">✎ Modifier</button>
+        <button class="iBtn del" onclick="delCharge('${c.id}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function moveMonth(dir){ viewMonth+=dir; if(viewMonth>11){viewMonth=0;viewYear++;} if(viewMonth<0){viewMonth=11;viewYear--;} renderMonthView(); }
+function goToday(){ viewMonth=TODAY.getMonth(); viewYear=TODAY.getFullYear(); renderMonthView(); }
+
+// ── ANNUAL VIEW ────────────────────────────────────────────────────────────
+function renderAnnualView(){
+  document.getElementById('year-label').textContent=annualYear;
+
+  let grandDue=0, grandPaid=0;
+  let rows='<thead><tr>';
+  rows+='<th>Mois</th><th>Total dû</th><th>Payé</th><th>Restant</th><th>Charges</th>';
+  rows+='</tr></thead><tbody>';
+
+  for(let m=0;m<12;m++){
+    const mCharges=chargesForMonth(m,annualYear);
+    const mCreds=creditsForMonth(m,annualYear);
+    const due=mCharges.reduce((s,c)=>s+(c.amount||0),0)+mCreds.reduce((s,cr)=>s+(cr.amount||0),0);
+
+    // paid — use real payments when available
+    const annMonthKey=annualYear+'-'+String(m+1).padStart(2,'0');
+    const paidC=mCharges.filter(c=>{
+      if(!c.lastPaid) return false;
+      const lp=new Date(c.lastPaid);
+      return lp.getMonth()===m && lp.getFullYear()===annualYear;
+    }).reduce((s,c)=>{
+      const real=(c.realPayments||{})[annMonthKey];
+      return s+(real!=null?real:(c.amount||0));
+    },0);
+    const paidCr=mCreds.filter(cr=>isCreditPaidForMonth(cr,m,annualYear)).reduce((s,cr)=>{
+      const dateForMonth=creditDateForMonth(cr,m,annualYear);
+      const real=dateForMonth?(cr.realPayments||{})[dateForMonth]:null;
+      return s+(real!=null?real:(cr.amount||0));
+    },0);
+    const paid=paidC+paidCr;
+    const remaining=Math.max(0,due-paid);
+
+    grandDue+=due; grandPaid+=paid;
+
+    const isCurrent=m===TODAY.getMonth()&&annualYear===TODAY.getFullYear();
+    const isFuture=(annualYear>TODAY.getFullYear())||(annualYear===TODAY.getFullYear()&&m>TODAY.getMonth());
+    const isPast=(annualYear<TODAY.getFullYear())||(annualYear===TODAY.getFullYear()&&m<TODAY.getMonth());
+    const isDone=isPast && remaining===0 && due>0;
+
+    const badge=isCurrent?'<span class="ann-badge current">CE MOIS</span>':isDone?'<span class="ann-badge done">✓</span>':'';
+    const countLabel=`${mCharges.length+mCreds.length} charge${mCharges.length+mCreds.length>1?'s':''}`;
+
+    rows+=`<tr class="annual-row${isCurrent?' current-month':''}">
+      <td class="ann-month">${MONTHS_SHORT[m]}${badge}</td>
+      <td class="ann-num due">${due>0?fDH(due):'—'}</td>
+      <td class="ann-num paid">${paid>0?fDH(paid):isFuture?'—':'<span style="color:var(--muted)">0 DH</span>'}</td>
+      <td class="ann-num ${remaining>0&&!isFuture?'remaining':'zero'}">${isFuture?'—':remaining>0?fDH(remaining):'✓'}</td>
+      <td class="ann-num" style="color:var(--muted);font-size:11px">${due>0?countLabel:'—'}</td>
+    </tr>`;
+  }
+
+  // Totals row
+  rows+=`<tr class="annual-total-row">
+    <td>TOTAL ${annualYear}</td>
+    <td class="ann-num due" style="font-weight:800">${fDH(grandDue)}</td>
+    <td class="ann-num paid" style="font-weight:800">${fDH(grandPaid)}</td>
+    <td class="ann-num remaining" style="font-weight:800">${fDH(Math.max(0,grandDue-grandPaid))}</td>
+    <td></td>
+  </tr>`;
+  rows+='</tbody>';
+  document.getElementById('annual-table').innerHTML=rows;
+
+  // Breakdown by charge
+  const allChargesYear=[...new Set([
+    ...charges.map(c=>c.id),
+    ...credits.map(c=>c.id)
+  ])];
+
+  // compute annual total per charge
+  const chargeBreakdown=charges.map(c=>{
+    let total=0;
+    for(let m=0;m<12;m++){
+      if(chargesForMonth(m,annualYear).find(x=>x.id===c.id)) total+=c.amount||0;
+    }
+    return{id:c.id,name:c.name,cat:c.cat,amount:c.amount,freq:c.freq,total,type:'charge'};
+  }).filter(x=>x.total>0);
+
+  const creditBreakdown=credits.map(cr=>{
+    let total=0;
+    for(let m=0;m<12;m++){
+      if(creditsForMonth(m,annualYear).find(x=>x.id===cr.id)) total+=cr.amount||0;
+    }
+    return{id:cr.id,name:cr.name,cat:cr.cat,amount:cr.amount,total,type:'credit'};
+  }).filter(x=>x.total>0);
+
+  const allBreakdown=[...chargeBreakdown,...creditBreakdown].sort((a,b)=>b.total-a.total);
+
+  if(!allBreakdown.length){
+    document.getElementById('annual-breakdown').innerHTML=`<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Aucune charge pour ${annualYear}</div>`;
+    return;
+  }
+
+  document.getElementById('annual-breakdown').innerHTML=`
+    <div class="breakdown-title">Toutes charges — ${annualYear}</div>
+    ${allBreakdown.map(x=>`
+      <div class="breakdown-row">
+        <div class="breakdown-name">
+          <span class="tag ${x.cat}" style="flex-shrink:0">${CAT_ICON[x.cat]} ${CAT_LBL[x.cat]}</span>
+          ${x.name}
+          ${x.type==='credit'?'<span class="tag credit-tag" style="font-size:9px">💳</span>':''}
+        </div>
+        <div>
+          <div class="breakdown-amt">${fDH(x.total)}</div>
+          <div style="font-size:10px;color:var(--muted);text-align:right">${fDH(x.amount)}/mois</div>
+        </div>
+      </div>
+    `).join('')}
+    <div class="breakdown-row" style="border-top:2px solid var(--border2);margin-top:4px;padding-top:12px">
+      <div style="font-size:13px;font-weight:800">Total annuel</div>
+      <div class="breakdown-amt" style="font-size:16px">${fDH(allBreakdown.reduce((s,x)=>s+x.total,0))}</div>
+    </div>
+  `;
+}
+
+function moveYear(dir){ annualYear+=dir; renderAnnualView(); }
+
+// ── VIEWS & TABS ──────────────────────────────────────────────────────────
+function setView(v,btn){
+  activeView=v;
+  document.querySelectorAll('.view-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-month').style.display=v==='month'?'block':'none';
+  document.getElementById('view-annual').style.display=v==='annual'?'block':'none';
+  render();
+}
+
+function setCat(c,btn){
+  activeCat=c;
+  document.querySelectorAll('.cat-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMonthView(); renderKPIs();
+}
+
+// ── CHARGE ACTIONS ────────────────────────────────────────────────────────
+// ── PAY MODAL ─────────────────────────────────────────────────────────────
+let pendingPayId=null, pendingPayType=null, pendingPayDate=null;
+
+function markPaid(id){
+  const c=charges.find(x=>x.id===id); if(!c) return;
+  pendingPayId=id; pendingPayType='charge'; pendingPayDate=null;
+  document.getElementById('pay-modal-sub').textContent='Montant estimé : '+fDH(c.amount);
+  document.getElementById('pay-real-amount').value=c.amount||'';
+  document.getElementById('pay-overlay').classList.add('open');
+  setTimeout(()=>{ const el=document.getElementById('pay-real-amount'); el.focus(); el.select(); },300);
+}
+
+function markCreditPaid(id,date){
+  const cr=credits.find(x=>x.id===id); if(!cr) return;
+  pendingPayId=id; pendingPayType='credit'; pendingPayDate=date;
+  document.getElementById('pay-modal-sub').textContent='Mensualité estimée : '+fDH(cr.amount);
+  document.getElementById('pay-real-amount').value=cr.amount||'';
+  document.getElementById('pay-overlay').classList.add('open');
+  setTimeout(()=>{ const el=document.getElementById('pay-real-amount'); el.focus(); el.select(); },300);
+}
+
+function closePayModal(){
+  document.getElementById('pay-overlay').classList.remove('open');
+  pendingPayId=null; pendingPayType=null; pendingPayDate=null;
+}
+
+function confirmPay(){
+  const realAmt=parseFloat(document.getElementById('pay-real-amount').value);
+  if(isNaN(realAmt)||realAmt<0){toast('⚠️ Montant invalide');return;}
+  closePayModal();
+
+  if(pendingPayType==='charge'){
+    const c=charges.find(x=>x.id===pendingPayId); if(!c) return;
+    const payDate=TODAY.toISOString().split('T')[0];
+    // Store real amount for this month
+    if(!c.realPayments) c.realPayments={};
+    const monthKey=viewYear+'-'+String(viewMonth+1).padStart(2,'0');
+    c.realPayments[monthKey]=realAmt;
+    c.paid=true; c.lastPaid=payDate; c.lastPaidAmount=realAmt;
+    if(c.freq!=='once'){
+      const nd=new Date(c.nextDate);
+      if(c.freq==='monthly') nd.setMonth(nd.getMonth()+1);
+      else if(c.freq==='quarterly') nd.setMonth(nd.getMonth()+3);
+      else if(c.freq==='annual') nd.setFullYear(nd.getFullYear()+1);
+      c.nextDate=nd.toISOString().split('T')[0];
+      setTimeout(()=>{c.paid=false;push();render();},1500);
+    }
+    push(); render();
+    const diff=Math.round(realAmt-(c.amount||0));
+    const diffTxt=diff>0?` (+${fDH(diff)})`:diff<0?` (-${fDH(Math.abs(diff))})`:' (exact)';
+    toast('✓ Payé '+fDH(realAmt)+diffTxt);
+
+  } else if(pendingPayType==='credit'){
+    const cr=credits.find(x=>x.id===pendingPayId); if(!cr) return;
+    if(!cr.paidMonths) cr.paidMonths=[];
+    if(!cr.paidMonths.includes(pendingPayDate)) cr.paidMonths.push(pendingPayDate);
+    if(!cr.realPayments) cr.realPayments={};
+    cr.realPayments[pendingPayDate]=realAmt;
+    push(); render();
+    const diff=Math.round(realAmt-(cr.amount||0));
+    const diffTxt=diff>0?` (+${fDH(diff)})`:diff<0?` (-${fDH(Math.abs(diff))})`:' (exact)';
+    toast('✓ Payé '+fDH(realAmt)+diffTxt);
+  }
+}
+
+document.getElementById('pay-overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('pay-overlay')) closePayModal(); });
+// confirm on Enter
+document.getElementById('pay-real-amount').addEventListener('keydown',e=>{ if(e.key==='Enter') confirmPay(); });
+
+function unmarkPaid(id){ const c=charges.find(x=>x.id===id); if(c){c.paid=false;push();render();} }
+function delCharge(id){ if(!confirm('Supprimer ?')) return; charges=charges.filter(x=>x.id!==id); push(); render(); }
+function delCredit(id){ if(!confirm('Supprimer ce crédit ?')) return; credits=credits.filter(x=>x.id!==id); push(); render(); }
+
+// ── ADD MENU ──────────────────────────────────────────────────────────────
+function toggleAddMenu(){ document.getElementById('add-menu').classList.toggle('open'); }
+function closeAddMenu(){ document.getElementById('add-menu').classList.remove('open'); }
+document.addEventListener('click',e=>{ if(!e.target.closest('.add-wrap')) closeAddMenu(); });
+
+// ── CHARGE MODAL ──────────────────────────────────────────────────────────
+function openChargeModal(id=null){
+  editChargeId=id;
+  document.getElementById('charge-modal-title').textContent=id?'Modifier la charge':'Nouvelle charge fixe';
+  if(id){
+    const c=charges.find(x=>x.id===id);
+    document.getElementById('f-name').value=c.name||'';
+    document.getElementById('f-amount').value=c.amount||'';
+    document.getElementById('f-cat').value=c.cat||'stwo';
+    document.getElementById('f-freq').value=c.freq||'monthly';
+    document.getElementById('f-date').value=c.nextDate||'';
+    document.getElementById('f-alert').value=c.alert||7;
+    document.getElementById('f-notes').value=c.notes||'';
+  } else {
+    ['f-name','f-amount','f-notes'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('f-cat').value='stwo';
+    document.getElementById('f-freq').value='monthly';
+    document.getElementById('f-date').value='';
+    document.getElementById('f-alert').value=7;
+  }
+  document.getElementById('charge-overlay').classList.add('open');
+}
+function editCharge(id){ openChargeModal(id); }
+function closeChargeModal(){ document.getElementById('charge-overlay').classList.remove('open'); editChargeId=null; }
+function saveCharge(){
+  const name=document.getElementById('f-name').value.trim();
+  const amount=parseFloat(document.getElementById('f-amount').value);
+  const nextDate=document.getElementById('f-date').value;
+  if(!name||isNaN(amount)||!nextDate){toast('⚠️ Remplis tous les champs');return;}
+  const obj={name,amount,cat:document.getElementById('f-cat').value,freq:document.getElementById('f-freq').value,nextDate,alert:parseInt(document.getElementById('f-alert').value)||7,notes:document.getElementById('f-notes').value.trim()};
+  if(editChargeId){Object.assign(charges.find(x=>x.id===editChargeId),obj);}
+  else{charges.push({id:uid(),...obj,paid:false,lastPaid:null});}
+  closeChargeModal(); push(); render();
+}
+document.getElementById('charge-overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('charge-overlay')) closeChargeModal(); });
+
+// ── CREDIT MODAL ──────────────────────────────────────────────────────────
+function openCreditModal(){
+  editCreditId=null;
+  document.getElementById('credit-modal-title').textContent='Nouveau crédit bancaire';
+  ['c-name','c-bank','c-amount','c-duration'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('c-start').value='';
+  document.getElementById('c-cat').value='stwo';
+  document.getElementById('c-alert').value=5;
+  document.getElementById('credit-preview').textContent='Remplis les champs pour voir un résumé…';
+  document.getElementById('credit-overlay').classList.add('open');
+}
+function openEditCreditModal(id){
+  editCreditId=id;
+  const cr=credits.find(x=>x.id===id);
+  document.getElementById('credit-modal-title').textContent='Modifier le crédit';
+  document.getElementById('c-name').value=cr.name||'';
+  document.getElementById('c-bank').value=cr.bank||'';
+  document.getElementById('c-amount').value=cr.amount||'';
+  document.getElementById('c-duration').value=cr.duration||'';
+  document.getElementById('c-start').value=cr.startDate||'';
+  document.getElementById('c-cat').value=cr.cat||'stwo';
+  document.getElementById('c-alert').value=cr.alert||5;
+  updateCreditPreview();
+  document.getElementById('credit-overlay').classList.add('open');
+}
+function closeCreditModal(){ document.getElementById('credit-overlay').classList.remove('open'); editCreditId=null; }
+function updateCreditPreview(){
+  const amount=parseFloat(document.getElementById('c-amount').value);
+  const duration=parseInt(document.getElementById('c-duration').value);
+  const start=document.getElementById('c-start').value;
+  if(!amount||!duration||!start){document.getElementById('credit-preview').textContent='Remplis les champs pour voir un résumé…';return;}
+  const total=amount*duration;
+  const startD=new Date(start);
+  const endD=new Date(startD.getFullYear(),startD.getMonth()+duration-1,startD.getDate());
+  document.getElementById('credit-preview').innerHTML=
+    `<b>${duration}</b> mensualités de <b>${fDH(amount)}</b><br>`+
+    `De <b>${fDateShort(start)}</b> à <b>${endD.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</b><br>`+
+    `Total remboursé : <b>${fDH(total)}</b>`;
+}
+function saveCredit(){
+  const name=document.getElementById('c-name').value.trim();
+  const bank=document.getElementById('c-bank').value.trim();
+  const amount=parseFloat(document.getElementById('c-amount').value);
+  const duration=parseInt(document.getElementById('c-duration').value);
+  const startDate=document.getElementById('c-start').value;
+  const cat=document.getElementById('c-cat').value;
+  const alert=parseInt(document.getElementById('c-alert').value)||5;
+  if(!name||isNaN(amount)||!duration||!startDate){toast('⚠️ Remplis tous les champs');return;}
+  if(editCreditId){Object.assign(credits.find(x=>x.id===editCreditId),{name,bank,amount,duration,startDate,cat,alert});}
+  else{credits.push({id:uid(),name,bank,amount,duration,startDate,cat,alert,paidMonths:[]});}
+  closeCreditModal(); push(); render();
+  toast('🏦 '+duration+' échéances générées');
+}
+document.getElementById('credit-overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('credit-overlay')) closeCreditModal(); });
+
+// ── TOAST ─────────────────────────────────────────────────────────────────
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
+</script>
+</body>
+</html>
