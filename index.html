@@ -54,10 +54,14 @@ body::before{
 /* KPIs */
 .kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;position:relative;overflow:hidden}
-.kpi::after{content:'';position:absolute;top:-12px;right:-12px;width:55px;height:55px;border-radius:50%;opacity:.07}
+.kpi.red{background:rgba(255,77,109,0.08);border-color:rgba(255,77,109,0.25)}
+.kpi.orange{background:rgba(255,140,66,0.08);border-color:rgba(255,140,66,0.25)}
+.kpi.blue{background:rgba(77,166,255,0.08);border-color:rgba(77,166,255,0.25)}
+.kpi.green{background:rgba(62,207,142,0.08);border-color:rgba(62,207,142,0.25)}
+.kpi::after{content:'';position:absolute;top:-12px;right:-12px;width:55px;height:55px;border-radius:50%;opacity:.12}
 .kpi.red::after{background:var(--red)}.kpi.orange::after{background:var(--orange)}.kpi.blue::after{background:var(--blue)}.kpi.green::after{background:var(--green)}
 .kpi-lbl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
-.kpi-val{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;letter-spacing:-0.5px}
+.kpi-val{font-family:'DM Mono',monospace;font-size:22px;font-weight:700;letter-spacing:-0.5px}
 .kpi.red .kpi-val{color:var(--red)}.kpi.orange .kpi-val{color:var(--orange)}.kpi.blue .kpi-val{color:var(--blue)}.kpi.green .kpi-val{color:var(--green)}
 .kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
 
@@ -87,6 +91,9 @@ body::before{
 /* MONTH SUMMARY BAR */
 .month-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
 .ms-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center}
+.ms-card.due{background:rgba(255,140,66,0.08);border-color:rgba(255,140,66,0.25)}
+.ms-card.paid{background:rgba(62,207,142,0.08);border-color:rgba(62,207,142,0.25)}
+.ms-card.remaining{background:rgba(255,77,109,0.08);border-color:rgba(255,77,109,0.25)}
 .ms-lbl{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
 .ms-val{font-family:'DM Mono',monospace;font-size:15px;font-weight:500}
 .ms-val.red{color:var(--red)}.ms-val.green{color:var(--green)}.ms-val.orange{color:var(--orange)}
@@ -290,15 +297,15 @@ body::before{
 
     <!-- Month summary -->
     <div class="month-summary">
-      <div class="ms-card">
+      <div class="ms-card due">
         <div class="ms-lbl">Total dû</div>
         <div class="ms-val orange" id="ms-due">—</div>
       </div>
-      <div class="ms-card">
+      <div class="ms-card paid">
         <div class="ms-lbl">Payé</div>
         <div class="ms-val green" id="ms-paid">—</div>
       </div>
-      <div class="ms-card">
+      <div class="ms-card remaining">
         <div class="ms-lbl">Restant</div>
         <div class="ms-val red" id="ms-remaining">—</div>
       </div>
@@ -863,21 +870,19 @@ function renderAnnualView(){
     const mCreds=creditsForMonth(m,annualYear);
     const due=mCharges.reduce((s,c)=>s+(c.amount||0),0)+mCreds.reduce((s,cr)=>s+(cr.amount||0),0);
 
-    // paid — use real payments when available
-    const annMonthKey=annualYear+'-'+String(m+1).padStart(2,'0');
-    const paidC=mCharges.filter(c=>{
-      if(!c.lastPaid) return false;
-      const lp=new Date(c.lastPaid);
-      return lp.getMonth()===m && lp.getFullYear()===annualYear;
-    }).reduce((s,c)=>{
-      const real=(c.realPayments||{})[annMonthKey];
-      return s+(real!=null?real:(c.amount||0));
-    },0);
-    const paidCr=mCreds.filter(cr=>isCreditPaidForMonth(cr,m,annualYear)).reduce((s,cr)=>{
-      const dateForMonth=creditDateForMonth(cr,m,annualYear);
-      const real=dateForMonth?(cr.realPayments||{})[dateForMonth]:null;
-      return s+(real!=null?real:(cr.amount||0));
-    },0);
+    // paid — use chargeStatusForMonth for consistency with month view
+    const annMonthKey = annualYear+'-'+String(m+1).padStart(2,'0');
+    const paidC = mCharges.filter(c => chargeStatusForMonth(c, m, annualYear) === 'paid')
+      .reduce((s,c) => {
+        const real = (c.realPayments||{})[annMonthKey];
+        return s + (real != null ? real : (c.amount||0));
+      }, 0);
+    const paidCr = mCreds.filter(cr => isCreditPaidForMonth(cr, m, annualYear))
+      .reduce((s,cr) => {
+        const dateForMonth = creditDateForMonth(cr, m, annualYear);
+        const real = dateForMonth ? (cr.realPayments||{})[dateForMonth] : null;
+        return s + (real != null ? real : (cr.amount||0));
+      }, 0);
     const paid=paidC+paidCr;
     const remaining=Math.max(0,due-paid);
 
