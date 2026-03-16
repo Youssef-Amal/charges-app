@@ -465,9 +465,16 @@ const CAT_ICON = {stwo:'🔷',ff:'🔴',perso:'🏠'};
 // ── INIT ─────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   const cached = localStorage.getItem(LOCAL_KEY);
-  if (cached) { const d=JSON.parse(cached); charges=d.charges||[]; credits=d.credits||[]; showApp(); render(); }
+  if(cached){
+    const d = JSON.parse(cached);
+    charges = d.charges || [];
+    credits = d.credits || [];
+  }
+  // Always show app immediately
+  showApp();
+  render();
+  // Then sync in background
   await syncAll();
-  if (!cached) showApp();
 });
 function showApp(){ document.getElementById('loading').style.display='none'; document.getElementById('app').style.display='block'; }
 
@@ -475,15 +482,33 @@ function showApp(){ document.getElementById('loading').style.display='none'; doc
 async function syncAll(){
   setSyncState('spin');
   try{
-    const r=await fetch(API+'?action=read&t='+Date.now());
-    const d=await r.json();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const r = await fetch(API + '?action=read&t=' + Date.now(), { signal: controller.signal });
+    clearTimeout(timeout);
+    const text = await r.text();
+    const d = JSON.parse(text);
     if(d.error) throw new Error(d.error);
-    charges=d.charges||[]; credits=d.credits||[];
-    saveLocal(); setSyncState('ok'); toast('✓ Synchronisé'); render();
-  }catch(e){
-    setSyncState('err'); toast('⚠️ Hors ligne — données locales');
-    const c=localStorage.getItem(LOCAL_KEY);
-    if(c&&!charges.length){const d=JSON.parse(c);charges=d.charges||[];credits=d.credits||[];render();}
+    charges = d.charges || [];
+    credits = d.credits || [];
+    saveLocal();
+    setSyncState('ok');
+    toast('✓ Synchronisé');
+    render();
+  } catch(e) {
+    setSyncState('err');
+    const cached = localStorage.getItem(LOCAL_KEY);
+    if(cached){
+      const d = JSON.parse(cached);
+      charges = d.charges || [];
+      credits = d.credits || [];
+      toast('⚠️ Hors ligne — données locales utilisées');
+    } else {
+      charges = [];
+      credits = [];
+      toast('⚠️ Impossible de se connecter au Sheet');
+    }
+    render();
   }
 }
 async function push(){
@@ -761,24 +786,14 @@ function renderMonthView(){
 
   const ST_CLS={overdue:'st-overdue',soon:'st-soon',ok:'st-ok',paid:'st-paid',upcoming:'st-ok'};
   document.getElementById('month-charges-list').innerHTML=monthCharges.map(c=>{
-  // Check if paid THIS specific month — only via lastPaid or realPayments
-  const paidThisMonth = (()=>{
-    const mKey = viewYear+'-'+String(viewMonth+1).padStart(2,'0');
-    if(c.realPayments && c.realPayments[mKey] != null) return true;
-    if(!c.lastPaid) return false;
-    const lp = new Date(c.lastPaid);
-    return lp.getMonth() === viewMonth && lp.getFullYear() === viewYear;
-  })();
-
     const st = chargeStatusForMonth(c, viewMonth, viewYear);
+    const paidThisMonth = st==='paid';
 
     // day of charge in this month
     const nd=new Date(c.nextDate);
     const chargeDay=nd.getDate();
     const chargeDate=new Date(viewYear,viewMonth,chargeDay);
     const diff=Math.round((chargeDate-TODAY)/86400000);
-
-    const paidThisMonth = st==='paid';
 
     const diffTxt = paidThisMonth    ? '✓ Payé ce mois'
       : st==='overdue'  ? `⚠ Non payé`
