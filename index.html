@@ -97,7 +97,6 @@ body::before{
 .card:hover{border-color:var(--border2)}
 .card.overdue{border-left:3px solid var(--red) !important}
 .card.soon{border-left:3px solid var(--orange) !important}
-.card.paid{opacity:.45}
 .card.cat-stwo{border-left:3px solid var(--stwo)}
 .card.cat-ff{border-left:3px solid var(--ff)}
 .card.cat-perso{border-left:3px solid var(--perso)}
@@ -679,14 +678,28 @@ function renderMonthView(){
       const{paidCount,remaining}=creditCurrentState(cr);
       const diff=dateForMonth?daysUntil(dateForMonth):0;
       const st=isPaid?'paid':diff<0?'overdue':diff<=(cr.alert||5)?'soon':'ok';
-      const diffTxt=isPaid?'✓ Payé':diff<0?`⚠ ${Math.abs(diff)}j retard`:diff===0?'⏰ Aujourd\'hui':`⏰ dans ${diff}j`;
+      const diffTxt=isPaid?'✓ Payé ce mois':diff<0?`⚠ ${Math.abs(diff)}j retard`:diff===0?'⏰ Aujourd\'hui':`⏰ dans ${diff}j`;
+      const borderColor = isPaid ? 'var(--green)' : st==='overdue'?'var(--red)':st==='soon'?'var(--orange)':'var(--credit)';
       const paidBtn=!isPaid
         ?`<button class="iBtn pay" onclick="markCreditPaid('${cr.id}','${dateForMonth}')">✓ Payé</button>`
-        :`<span style="font-size:11px;color:var(--green)">✓ Payé</span>`;
-      return `<div class="credit-card" style="margin-bottom:8px">
+        :`<span style="font-size:11px;font-weight:700;color:var(--green)">✓ Payé ce mois</span>`;
+      const realCrAmt=dateForMonth?(cr.realPayments||{})[dateForMonth]:null;
+      const crAmountDisplay = isPaid
+        ? realCrAmt!=null && realCrAmt!==cr.amount
+          ? `<div style="text-align:right">
+               <div style="font-family:'DM Mono',monospace;font-size:12px;text-decoration:line-through;opacity:.4">${fDH(cr.amount)}</div>
+               <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--green)">${fDH(realCrAmt)}</div>
+             </div>`
+          : `<div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--green)">${fDH(realCrAmt!=null?realCrAmt:cr.amount)}<span style="font-size:11px;color:var(--muted)">/mois</span></div>`
+        : `<div class="credit-monthly">${fDH(cr.amount)}<span style="font-size:11px;color:var(--muted)">/mois</span></div>`;
+      return `<div class="credit-card" style="margin-bottom:8px;border-left:3px solid ${borderColor};${isPaid?'background:rgba(62,207,142,0.04)':''}">
         <div class="credit-top">
-          <div><div class="credit-name">${cr.name}</div>${cr.bank?`<div style="font-size:11px;color:var(--muted);margin-top:2px">🏦 ${cr.bank}</div>`:''}</div>
-          <div class="credit-monthly">${fDH(cr.amount)}<span style="font-size:11px;color:var(--muted)">/mois</span></div>
+          <div>
+            <div class="credit-name">${cr.name}</div>
+            ${cr.bank?`<div style="font-size:11px;color:var(--muted);margin-top:2px">🏦 ${cr.bank}</div>`:''}
+            ${isPaid?`<div style="font-size:10px;font-weight:700;color:var(--green);margin-top:2px;letter-spacing:.5px">✓ PAYÉ CE MOIS</div>`:''}
+          </div>
+          ${crAmountDisplay}
         </div>
         <div class="credit-meta">
           <span class="tag ${cr.cat}">${CAT_ICON[cr.cat]} ${CAT_LBL[cr.cat]}</span>
@@ -726,24 +739,43 @@ function renderMonthView(){
 
   const ST_CLS={overdue:'st-overdue',soon:'st-soon',ok:'st-ok',paid:'st-paid'};
   document.getElementById('month-charges-list').innerHTML=monthCharges.map(c=>{
-    const st=chargeStatus(c);
+    // check if paid THIS specific month (not just globally)
+    const paidThisMonth = (()=>{
+      if(c.freq==='once') return c.paid;
+      if(!c.lastPaid) return false;
+      const lp=new Date(c.lastPaid);
+      return lp.getMonth()===viewMonth && lp.getFullYear()===viewYear;
+    })();
+
+    const st = paidThisMonth ? 'paid' : chargeStatus(c);
     const diff=daysUntil(c.nextDate);
-    const diffTxt=st==='overdue'?`⚠ ${Math.abs(diff)}j retard`:st==='soon'?`⏰ dans ${diff}j`:st==='paid'?'✓ Payé':'✓ OK';
-    const rowCls=(st==='overdue'?'overdue':st==='soon'?'soon':st==='paid'?'paid':'')+' cat-'+(c.cat||'perso');
-    const paidBtn=st!=='paid'
-      ?`<button class="iBtn pay" onclick="markPaid('${c.id}')">✓ Payé</button>`
-      :`<button class="iBtn unpay" onclick="unmarkPaid('${c.id}')">↩</button>`;
-    // show real paid amount if different from estimate
+    const diffTxt=paidThisMonth?'✓ Payé ce mois':st==='overdue'?`⚠ ${Math.abs(diff)}j retard`:st==='soon'?`⏰ dans ${diff}j`:'✓ OK';
+
+    // card border : paid this month = green, else category color
+    const borderColor = paidThisMonth ? 'var(--green)' : st==='overdue' ? 'var(--red)' : st==='soon' ? 'var(--orange)' : `var(--${c.cat||'perso'})`;
+    const bgColor = paidThisMonth ? 'rgba(62,207,142,0.04)' : '';
+
+    const paidBtn = paidThisMonth
+      ? `<button class="iBtn unpay" onclick="unmarkPaid('${c.id}')">↩ Annuler</button>`
+      : `<button class="iBtn pay" onclick="markPaid('${c.id}')">✓ Payé</button>`;
+
+    // real paid amount
     const realAmt=(c.realPayments||{})[monthKey];
-    const amountDisplay=realAmt!=null && realAmt!==c.amount
-      ?`<div style="text-align:right">
-          <div class="card-amount" style="text-decoration:line-through;opacity:.4;font-size:13px">${fDH(c.amount)}</div>
-          <div class="card-amount" style="color:var(--green)">${fDH(realAmt)}</div>
-        </div>`
-      :`<div class="card-amount">${fDH(c.amount)}</div>`;
-    return `<div class="card ${rowCls}">
+    const amountDisplay = paidThisMonth
+      ? realAmt!=null && realAmt!==c.amount
+        ? `<div style="text-align:right">
+             <div style="font-family:'DM Mono',monospace;font-size:12px;text-decoration:line-through;opacity:.4">${fDH(c.amount)}</div>
+             <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--green)">${fDH(realAmt)}</div>
+           </div>`
+        : `<div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--green)">${fDH(realAmt!=null?realAmt:c.amount)}</div>`
+      : `<div class="card-amount">${fDH(c.amount)}</div>`;
+
+    return `<div class="card cat-${c.cat||'perso'}" style="border-left:3px solid ${borderColor};${bgColor?'background:'+bgColor:''}">
       <div class="card-top">
-        <div class="card-name">${c.name}</div>
+        <div>
+          <div class="card-name">${c.name}</div>
+          ${paidThisMonth?`<div style="font-size:10px;font-weight:700;color:var(--green);margin-top:2px;letter-spacing:.5px">✓ PAYÉ CE MOIS</div>`:''}
+        </div>
         ${amountDisplay}
       </div>
       <div class="card-meta">
