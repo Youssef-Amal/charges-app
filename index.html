@@ -501,11 +501,39 @@ function setSyncState(s){ document.getElementById('sdot').className='sdot'+(s===
 // ── UTILS ─────────────────────────────────────────────────────────────────
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
 function daysUntil(ds){ const d=new Date(ds); d.setHours(0,0,0,0); return Math.round((d-TODAY)/86400000); }
+// Global status (for alerts/KPIs) — based on today
 function chargeStatus(c){
   if(c.paid) return 'paid';
   const d=daysUntil(c.nextDate);
   if(d<0) return 'overdue';
   if(d<=(c.alert||7)) return 'soon';
+  return 'ok';
+}
+
+// Month-aware status — for a specific month view
+function chargeStatusForMonth(c, m, y){
+  const now = new Date(); now.setHours(0,0,0,0);
+  const isCurrentMonth = m===now.getMonth() && y===now.getFullYear();
+  const isFutureMonth  = (y>now.getFullYear()) || (y===now.getFullYear() && m>now.getMonth());
+  const isPastMonth    = (y<now.getFullYear()) || (y===now.getFullYear() && m<now.getMonth());
+
+  // Check paid — via realPayments or lastPaid
+  const mKey = y+'-'+String(m+1).padStart(2,'0');
+  const paidThisMonth = (
+    (c.realPayments && c.realPayments[mKey] != null) ||
+    (c.lastPaid && (()=>{ const lp=new Date(c.lastPaid); return lp.getMonth()===m && lp.getFullYear()===y; })())
+  );
+  if(paidThisMonth) return 'paid';
+
+  if(isFutureMonth) return 'upcoming';
+  if(isPastMonth)   return 'overdue';
+
+  // current month — check the day
+  const chargeDay = new Date(c.nextDate).getDate();
+  const chargeDate = new Date(y, m, chargeDay);
+  const diff = Math.round((chargeDate - now) / 86400000);
+  if(diff < 0) return 'overdue';
+  if(diff <= (c.alert||7)) return 'soon';
   return 'ok';
 }
 function fDH(n){ return new Intl.NumberFormat('fr-MA',{minimumFractionDigits:0,maximumFractionDigits:0}).format(n||0)+' DH'; }
@@ -640,18 +668,11 @@ function renderMonthView(){
 
   const totalDue=monthCharges.reduce((s,c)=>s+(c.amount||0),0)+monthCreds.reduce((s,cr)=>s+(cr.amount||0),0);
 
-  // paid: use realPayments[monthKey] if available, otherwise estimated amount
-  const paidChargesAmt=monthCharges.filter(c=>{
-    if(c.freq==='monthly'||c.freq==='quarterly'||c.freq==='annual'){
-      if(!c.lastPaid) return false;
-      const lp=new Date(c.lastPaid);
-      return lp.getMonth()===viewMonth && lp.getFullYear()===viewYear;
-    }
-    return c.paid;
-  }).reduce((s,c)=>{
-    const real=(c.realPayments||{})[monthKey];
-    return s+(real!=null?real:(c.amount||0));
-  },0);
+  const paidChargesAmt=monthCharges.filter(c=> chargeStatusForMonth(c,viewMonth,viewYear)==='paid')
+    .reduce((s,c)=>{
+      const real=(c.realPayments||{})[monthKey];
+      return s+(real!=null?real:(c.amount||0));
+    },0);
 
   const paidCreditsAmt=monthCreds.filter(cr=>isCreditPaidForMonth(cr,viewMonth,viewYear)).reduce((s,cr)=>{
     const dateForMonth=creditDateForMonth(cr,viewMonth,viewYear);
@@ -719,11 +740,12 @@ function renderMonthView(){
 
   // Sort charges
   const sort=document.getElementById('month-sort').value;
-  const sOrd={overdue:0,soon:1,ok:2,paid:3};
+  const sOrd={overdue:0,soon:1,ok:2,upcoming:3,paid:4};
   monthCharges.sort((a,b)=>{
-    if(sort==='status') return sOrd[chargeStatus(a)]-sOrd[chargeStatus(b)];
+    if(sort==='status') return sOrd[chargeStatusForMonth(a,viewMonth,viewYear)]-sOrd[chargeStatusForMonth(b,viewMonth,viewYear)];
     if(sort==='amount') return (b.amount||0)-(a.amount||0);
-    return new Date(a.nextDate||0)-new Date(b.nextDate||0);
+    // sort by day of month
+    return new Date(a.nextDate).getDate()-new Date(b.nextDate).getDate();
   });
 
   document.getElementById('month-count').textContent=monthCharges.length;
@@ -737,26 +759,42 @@ function renderMonthView(){
     return;
   }
 
-  const ST_CLS={overdue:'st-overdue',soon:'st-soon',ok:'st-ok',paid:'st-paid'};
+  const ST_CLS={overdue:'st-overdue',soon:'st-soon',ok:'st-ok',paid:'st-paid',upcoming:'st-ok'};
   document.getElementById('month-charges-list').innerHTML=monthCharges.map(c=>{
-    // check if paid THIS specific month (not just globally)
-    const paidThisMonth = (()=>{
-      if(c.freq==='once') return c.paid;
-      if(!c.lastPaid) return false;
-      const lp=new Date(c.lastPaid);
-      return lp.getMonth()===viewMonth && lp.getFullYear()===viewYear;
-    })();
+  // Check if paid THIS specific month — only via lastPaid or realPayments
+  const paidThisMonth = (()=>{
+    const mKey = viewYear+'-'+String(viewMonth+1).padStart(2,'0');
+    if(c.realPayments && c.realPayments[mKey] != null) return true;
+    if(!c.lastPaid) return false;
+    const lp = new Date(c.lastPaid);
+    return lp.getMonth() === viewMonth && lp.getFullYear() === viewYear;
+  })();
 
-    const st = paidThisMonth ? 'paid' : chargeStatus(c);
-    const diff=daysUntil(c.nextDate);
-    const diffTxt=paidThisMonth?'✓ Payé ce mois':st==='overdue'?`⚠ ${Math.abs(diff)}j retard`:st==='soon'?`⏰ dans ${diff}j`:'✓ OK';
+    const st = chargeStatusForMonth(c, viewMonth, viewYear);
 
-    // card border : paid this month = green, else category color
-    const borderColor = paidThisMonth ? 'var(--green)' : st==='overdue' ? 'var(--red)' : st==='soon' ? 'var(--orange)' : `var(--${c.cat||'perso'})`;
+    // day of charge in this month
+    const nd=new Date(c.nextDate);
+    const chargeDay=nd.getDate();
+    const chargeDate=new Date(viewYear,viewMonth,chargeDay);
+    const diff=Math.round((chargeDate-TODAY)/86400000);
+
+    const paidThisMonth = st==='paid';
+
+    const diffTxt = paidThisMonth    ? '✓ Payé ce mois'
+      : st==='overdue'  ? `⚠ Non payé`
+      : st==='upcoming' ? `📅 Prévu`
+      : st==='soon'     ? diff===0 ? `⏰ Aujourd'hui` : `⏰ dans ${diff}j`
+      : `📅 le ${chargeDay}`;
+
+    const borderColor = paidThisMonth  ? 'var(--green)'
+      : st==='overdue'  ? 'var(--red)'
+      : st==='soon'     ? 'var(--orange)'
+      : `var(--${c.cat||'perso'})`;
     const bgColor = paidThisMonth ? 'rgba(62,207,142,0.04)' : '';
 
     const paidBtn = paidThisMonth
-      ? `<button class="iBtn unpay" onclick="unmarkPaid('${c.id}')">↩ Annuler</button>`
+      ? `<button class="iBtn" style="color:var(--green);border-color:rgba(62,207,142,0.3);cursor:default" disabled>✓ Payé</button>
+         <button class="iBtn unpay" onclick="unmarkPaid('${c.id}')">↩</button>`
       : `<button class="iBtn pay" onclick="markPaid('${c.id}')">✓ Payé</button>`;
 
     // real paid amount
@@ -783,7 +821,7 @@ function renderMonthView(){
         <span class="tag freq">${FREQ_LBL[c.freq]||c.freq}</span>
         <span class="status-tag ${ST_CLS[st]}">${diffTxt}</span>
       </div>
-      <div class="card-date">📅 ${fDate(c.nextDate)}${c.notes?' · '+c.notes:''}</div>
+      <div class="card-date">📅 Échéance le ${chargeDay} ${MONTHS_FR[viewMonth]}${c.notes?' · '+c.notes:''}</div>
       <div class="card-actions">
         ${paidBtn}
         <button class="iBtn edit" onclick="editCharge('${c.id}')">✎ Modifier</button>
@@ -957,51 +995,86 @@ function closePayModal(){
 }
 
 function confirmPay(){
-  const realAmt=parseFloat(document.getElementById('pay-real-amount').value);
-  if(isNaN(realAmt)||realAmt<0){toast('⚠️ Montant invalide');return;}
+  const realAmt = parseFloat(document.getElementById('pay-real-amount').value);
+  if(isNaN(realAmt) || realAmt < 0){ toast('⚠️ Montant invalide'); return; }
+
+  const savedId   = pendingPayId;
+  const savedType = pendingPayType;
+  const savedDate = pendingPayDate;
   closePayModal();
 
-  if(pendingPayType==='charge'){
-    const c=charges.find(x=>x.id===pendingPayId); if(!c) return;
-    const payDate=TODAY.toISOString().split('T')[0];
-    // Store real amount for this month
-    if(!c.realPayments) c.realPayments={};
-    const monthKey=viewYear+'-'+String(viewMonth+1).padStart(2,'0');
-    c.realPayments[monthKey]=realAmt;
-    c.paid=true; c.lastPaid=payDate; c.lastPaidAmount=realAmt;
-    if(c.freq!=='once'){
-      const nd=new Date(c.nextDate);
-      if(c.freq==='monthly') nd.setMonth(nd.getMonth()+1);
-      else if(c.freq==='quarterly') nd.setMonth(nd.getMonth()+3);
-      else if(c.freq==='annual') nd.setFullYear(nd.getFullYear()+1);
-      c.nextDate=nd.toISOString().split('T')[0];
-      setTimeout(()=>{c.paid=false;push();render();},1500);
-    }
-    push(); render();
-    const diff=Math.round(realAmt-(c.amount||0));
-    const diffTxt=diff>0?` (+${fDH(diff)})`:diff<0?` (-${fDH(Math.abs(diff))})`:' (exact)';
-    toast('✓ Payé '+fDH(realAmt)+diffTxt);
+  if(savedType === 'charge'){
+    const c = charges.find(x => x.id === savedId);
+    if(!c) return;
 
-  } else if(pendingPayType==='credit'){
-    const cr=credits.find(x=>x.id===pendingPayId); if(!cr) return;
-    if(!cr.paidMonths) cr.paidMonths=[];
-    if(!cr.paidMonths.includes(pendingPayDate)) cr.paidMonths.push(pendingPayDate);
-    if(!cr.realPayments) cr.realPayments={};
-    cr.realPayments[pendingPayDate]=realAmt;
-    push(); render();
-    const diff=Math.round(realAmt-(cr.amount||0));
-    const diffTxt=diff>0?` (+${fDH(diff)})`:diff<0?` (-${fDH(Math.abs(diff))})`:' (exact)';
-    toast('✓ Payé '+fDH(realAmt)+diffTxt);
+    // Save real payment for this specific month
+    if(!c.realPayments) c.realPayments = {};
+    const mKey = viewYear + '-' + String(viewMonth + 1).padStart(2,'0');
+    c.realPayments[mKey] = realAmt;
+
+    // Record lastPaid as the actual payment date (today)
+    c.lastPaid = new Date(viewYear, viewMonth, new Date(c.nextDate).getDate())
+                   .toISOString().split('T')[0];
+    c.lastPaidAmount = realAmt;
+
+    // Do NOT touch nextDate here — chargesForMonth handles recurrence
+    // Do NOT set paid=true — paidThisMonth logic reads lastPaid instead
+
+    saveLocal();
+    push();
+    render();
+
+    const diff = Math.round(realAmt - (c.amount || 0));
+    const diffTxt = diff > 0 ? ` (+${fDH(diff)})` : diff < 0 ? ` (-${fDH(Math.abs(diff))})` : '';
+    toast('✓ Payé ' + fDH(realAmt) + diffTxt);
+
+  } else if(savedType === 'credit'){
+    const cr = credits.find(x => x.id === savedId);
+    if(!cr) return;
+
+    if(!cr.paidMonths) cr.paidMonths = [];
+    if(!cr.paidMonths.includes(savedDate)) cr.paidMonths.push(savedDate);
+
+    if(!cr.realPayments) cr.realPayments = {};
+    cr.realPayments[savedDate] = realAmt;
+
+    saveLocal();
+    push();
+    render();
+
+    const diff = Math.round(realAmt - (cr.amount || 0));
+    const diffTxt = diff > 0 ? ` (+${fDH(diff)})` : diff < 0 ? ` (-${fDH(Math.abs(diff))})` : '';
+    toast('✓ Payé ' + fDH(realAmt) + diffTxt);
   }
 }
 
-document.getElementById('pay-overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('pay-overlay')) closePayModal(); });
-// confirm on Enter
-document.getElementById('pay-real-amount').addEventListener('keydown',e=>{ if(e.key==='Enter') confirmPay(); });
+document.getElementById('pay-overlay').addEventListener('click', e => {
+  if(e.target === document.getElementById('pay-overlay')) closePayModal();
+});
+document.getElementById('pay-real-amount').addEventListener('keydown', e => {
+  if(e.key === 'Enter') confirmPay();
+});
 
-function unmarkPaid(id){ const c=charges.find(x=>x.id===id); if(c){c.paid=false;push();render();} }
-function delCharge(id){ if(!confirm('Supprimer ?')) return; charges=charges.filter(x=>x.id!==id); push(); render(); }
-function delCredit(id){ if(!confirm('Supprimer ce crédit ?')) return; credits=credits.filter(x=>x.id!==id); push(); render(); }
+function unmarkPaid(id){
+  const c = charges.find(x => x.id === id);
+  if(!c) return;
+  // Remove lastPaid for this specific view month
+  const mKey = viewYear + '-' + String(viewMonth + 1).padStart(2,'0');
+  if(c.realPayments) delete c.realPayments[mKey];
+  // Clear lastPaid only if it was this month
+  if(c.lastPaid){
+    const lp = new Date(c.lastPaid);
+    if(lp.getMonth() === viewMonth && lp.getFullYear() === viewYear){
+      c.lastPaid = null;
+      c.lastPaidAmount = null;
+    }
+  }
+  c.paid = false;
+  saveLocal(); push(); render();
+}
+
+function delCharge(id){ if(!confirm('Supprimer ?')) return; charges=charges.filter(x=>x.id!==id); saveLocal(); push(); render(); }
+function delCredit(id){ if(!confirm('Supprimer ce crédit ?')) return; credits=credits.filter(x=>x.id!==id); saveLocal(); push(); render(); }
 
 // ── ADD MENU ──────────────────────────────────────────────────────────────
 function toggleAddMenu(){ document.getElementById('add-menu').classList.toggle('open'); }
