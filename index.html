@@ -859,26 +859,42 @@ function renderAnnualView(){
 
   catsToShow.forEach(cat=>{
     const col = cat.color;
-    let grandDue=0, grandPaid=0;
+    let grandDue=0, grandPaid=0, grandRemaining=0;
     let rows='';
     for(let m=0;m<12;m++){
       const mCharges = chargesForMonth(m,annualYear).filter(c=>c.cat===cat.id);
       const mCreds   = creditsForMonth(m,annualYear).filter(cr=>cr.cat===cat.id);
       const mKey = annualYear+'-'+String(m+1).padStart(2,'0');
-      const due = mCharges.reduce((s,c)=>s+(c.amount||0),0)+mCreds.reduce((s,cr)=>s+(cr.amount||0),0);
-      const paid = mCharges.filter(c=>chargeStatusForMonth(c,m,annualYear)==='paid').reduce((s,c)=>{const r=(c.realPayments||{})[mKey];return s+(r!=null?r:c.amount||0);},0)
-        +mCreds.filter(cr=>isCreditPaidForMonth(cr,m,annualYear)).reduce((s,cr)=>{const d=creditDateForMonth(cr,m,annualYear);const r=d?(cr.realPayments||{})[d]:null;return s+(r!=null?r:cr.amount||0);},0);
-      const rem = Math.max(0,due-paid);
-      grandDue+=due; grandPaid+=paid;
-      const isCur = m===TODAY.getMonth()&&annualYear===TODAY.getFullYear();
+
+      // Total dû ce mois
+      const due = mCharges.reduce((s,c)=>s+(c.amount||0),0)
+                + mCreds.reduce((s,cr)=>s+(cr.amount||0),0);
+
+      // Payé ce mois (montants réels)
+      const paid = mCharges.filter(c=>chargeStatusForMonth(c,m,annualYear)==='paid')
+        .reduce((s,c)=>{ const r=(c.realPayments||{})[mKey]; return s+(r!=null?r:c.amount||0); },0)
+      + mCreds.filter(cr=>isCreditPaidForMonth(cr,m,annualYear))
+        .reduce((s,cr)=>{ const d=creditDateForMonth(cr,m,annualYear); const r=d?(cr.realPayments||{})[d]:null; return s+(r!=null?r:cr.amount||0); },0);
+
+      // Restant = somme des impayés (pas de soustraction)
       const isFut = annualYear>TODAY.getFullYear()||(annualYear===TODAY.getFullYear()&&m>TODAY.getMonth());
+      const rem = isFut ? due
+        : mCharges.filter(c=>chargeStatusForMonth(c,m,annualYear)!=='paid'&&chargeStatusForMonth(c,m,annualYear)!=='upcoming')
+            .reduce((s,c)=>s+(c.amount||0),0)
+          + mCreds.filter(cr=>{ const d=creditDateForMonth(cr,m,annualYear); return d&&!isCreditPaidForMonth(cr,m,annualYear); })
+            .reduce((s,cr)=>s+(cr.amount||0),0);
+
+      grandDue+=due; grandPaid+=paid; grandRemaining+=rem;
+
+      const isCur = m===TODAY.getMonth()&&annualYear===TODAY.getFullYear();
       const isDone = !isFut&&!isCur&&rem===0&&due>0;
       const badge = isCur?`<span class="ann-badge cur">CE MOIS</span>`:isDone?`<span class="ann-badge done">✓</span>`:'';
+
       rows+=`<tr class="${isCur?'cur-month':''}">
         <td style="font-weight:700">${MONTHS_SH[m]}${badge}</td>
         <td class="ann-num due">${due>0?fDH(due):'—'}</td>
         <td class="ann-num paid-col">${paid>0?fDH(paid):isFut?'—':'<span style="color:var(--muted)">—</span>'}</td>
-        <td class="ann-num ${rem>0&&!isFut?'rem-col':'zero'}">${isFut?'—':rem>0?fDH(rem):'✓'}</td>
+        <td class="ann-num ${rem>0?'rem-col':'zero'}">${isFut?'<span style="color:var(--muted)">à venir</span>':rem>0?fDH(rem):'✓'}</td>
       </tr>`;
     }
     html+=`<div class="ann-table-wrap">
@@ -891,10 +907,10 @@ function renderAnnualView(){
         <thead><tr><th>Mois</th><th>Dû</th><th>Payé</th><th>Restant</th></tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr class="ann-total">
-          <td>TOTAL</td>
+          <td>TOTAL ${annualYear}</td>
           <td class="ann-num due">${fDH(grandDue)}</td>
           <td class="ann-num paid-col">${fDH(grandPaid)}</td>
-          <td class="ann-num rem-col">${fDH(Math.max(0,grandDue-grandPaid))}</td>
+          <td class="ann-num ${grandRemaining>0?'rem-col':'zero'}">${grandRemaining>0?fDH(grandRemaining):'✓ Tout payé'}</td>
         </tr></tfoot>
       </table>
     </div>`;
