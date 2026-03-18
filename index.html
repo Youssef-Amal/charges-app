@@ -642,22 +642,37 @@ function renderCatTabs(){
 
 function renderKPIs(){
   const m=viewMonth, y=viewYear;
-  const cats = activeCat==='all' ? categories : categories.filter(c=>c.id===activeCat);
   const mKey = y+'-'+String(m+1).padStart(2,'0');
 
   let mCharges = chargesForMonth(m,y).filter(c=>activeCat==='all'||c.cat===activeCat);
   let mCreds   = creditsForMonth(m,y).filter(cr=>activeCat==='all'||cr.cat===activeCat);
 
-  const totalDue = mCharges.reduce((s,c)=>s+(c.amount||0),0)+mCreds.reduce((s,cr)=>s+(cr.amount||0),0);
-  const paidAmt  = mCharges.filter(c=>chargeStatusForMonth(c,m,y)==='paid').reduce((s,c)=>{const r=(c.realPayments||{})[mKey];return s+(r!=null?r:c.amount||0);},0)
-    + mCreds.filter(cr=>isCreditPaidForMonth(cr,m,y)).reduce((s,cr)=>{const d=creditDateForMonth(cr,m,y);const r=d?(cr.realPayments||{})[d]:null;return s+(r!=null?r:cr.amount||0);},0);
+  // Séparer payé / non payé
+  const paidCharges   = mCharges.filter(c=>chargeStatusForMonth(c,m,y)==='paid');
+  const unpaidCharges = mCharges.filter(c=>chargeStatusForMonth(c,m,y)!=='paid' && chargeStatusForMonth(c,m,y)!=='upcoming');
+  const paidCreds     = mCreds.filter(cr=>isCreditPaidForMonth(cr,m,y));
+  const unpaidCreds   = mCreds.filter(cr=>{
+    const d=creditDateForMonth(cr,m,y);
+    return d && !isCreditPaidForMonth(cr,m,y);
+  });
+
+  // Total dû = tous les montants estimés du mois (payé ou pas)
+  const totalDue = mCharges.reduce((s,c)=>s+(c.amount||0),0)
+                 + mCreds.reduce((s,cr)=>s+(cr.amount||0),0);
+
+  // Payé = montants RÉELS payés (pas estimés)
+  const paidAmt = paidCharges.reduce((s,c)=>{ const r=(c.realPayments||{})[mKey]; return s+(r!=null?r:c.amount||0); },0)
+                + paidCreds.reduce((s,cr)=>{ const d=creditDateForMonth(cr,m,y); const r=d?(cr.realPayments||{})[d]:null; return s+(r!=null?r:cr.amount||0); },0);
+
+  // À régler = somme des charges NON payées (montants estimés restants)
+  const remainingAmt = unpaidCharges.reduce((s,c)=>s+(c.amount||0),0)
+                     + unpaidCreds.reduce((s,cr)=>s+(cr.amount||0),0);
+
+  // En retard = sous-ensemble des impayés qui sont overdue
   const overdueAmt = mCharges.filter(c=>chargeStatusForMonth(c,m,y)==='overdue').reduce((s,c)=>s+(c.amount||0),0)
     + mCreds.filter(cr=>{const d=creditDateForMonth(cr,m,y);return d&&!isCreditPaidForMonth(cr,m,y)&&daysUntil(d)<0;}).reduce((s,cr)=>s+(cr.amount||0),0);
-  const remaining = Math.max(0,totalDue-paidAmt);
 
   const catLabel = activeCat==='all'?'Toutes':catName(activeCat);
-  const accentCol = activeCat==='all'?'#f0c040':catColor(activeCat);
-  const rgb = hexToRgb(accentCol);
 
   document.getElementById('kpi-grid').innerHTML=`
     <div class="kpi" style="background:rgba(${hexToRgb('#ff8c42')},0.1);border:1px solid rgba(${hexToRgb('#ff8c42')},0.3)">
@@ -677,7 +692,7 @@ function renderKPIs(){
     </div>
     <div class="kpi" style="background:rgba(${hexToRgb('#4da6ff')},0.1);border:1px solid rgba(${hexToRgb('#4da6ff')},0.3)">
       <div class="kpi-lbl">À régler</div>
-      <div class="kpi-val" style="color:#4da6ff">${fDH(remaining)}</div>
+      <div class="kpi-val" style="color:#4da6ff">${fDH(remainingAmt)}</div>
       <div class="kpi-sub">${MONTHS_FR[m]} · ${catLabel}</div>
     </div>`;
 }
@@ -713,9 +728,12 @@ function renderMonthView(){
   const totalDue = allCharges.reduce((s,c)=>s+(c.amount||0),0)+allCreds.reduce((s,cr)=>s+(cr.amount||0),0);
   const paidAmt  = allCharges.filter(c=>chargeStatusForMonth(c,m,y)==='paid').reduce((s,c)=>{const r=(c.realPayments||{})[mKey];return s+(r!=null?r:c.amount||0);},0)
     +allCreds.filter(cr=>isCreditPaidForMonth(cr,m,y)).reduce((s,cr)=>{const d=creditDateForMonth(cr,m,y);const r=d?(cr.realPayments||{})[d]:null;return s+(r!=null?r:cr.amount||0);},0);
+  // Restant = somme des charges non payées (pas de soustraction)
+  const remainingAmt = allCharges.filter(c=>chargeStatusForMonth(c,m,y)!=='paid'&&chargeStatusForMonth(c,m,y)!=='upcoming').reduce((s,c)=>s+(c.amount||0),0)
+    +allCreds.filter(cr=>{const d=creditDateForMonth(cr,m,y);return d&&!isCreditPaidForMonth(cr,m,y);}).reduce((s,cr)=>s+(cr.amount||0),0);
   document.getElementById('ms-due').textContent = fDH(totalDue);
   document.getElementById('ms-paid').textContent = fDH(paidAmt);
-  document.getElementById('ms-remaining').textContent = fDH(Math.max(0,totalDue-paidAmt));
+  document.getElementById('ms-remaining').textContent = fDH(remainingAmt);
 
   let html='';
 
