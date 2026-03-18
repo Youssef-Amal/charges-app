@@ -485,14 +485,63 @@ async function syncAll(){
     clearTimeout(t);
     const d = await r.json();
     if(d.error) throw new Error(d.error);
-    charges    = d.charges    || [];
-    credits    = d.credits    || [];
-    categories = d.categories && d.categories.length ? d.categories : categories;
-    saveLocal(); setSyncState('ok'); toast('✓ Synchronisé'); render();
+
+    // ── SMART MERGE — local payments always win ──────────────────────────
+    const remoteCharges  = d.charges    || [];
+    const remoteCredits  = d.credits    || [];
+    const remoteCats     = d.categories || [];
+
+    // Merge charges: keep remote structure but preserve local realPayments + lastPaid
+    charges = remoteCharges.map(remote => {
+      const local = charges.find(c => c.id === remote.id);
+      if (!local) return remote;
+      // Merge realPayments: local wins on each key
+      const mergedPayments = Object.assign({}, remote.realPayments||{}, local.realPayments||{});
+      // Keep most recent lastPaid
+      let lastPaid = remote.lastPaid;
+      if (local.lastPaid && (!lastPaid || local.lastPaid > lastPaid)) lastPaid = local.lastPaid;
+      return Object.assign({}, remote, {
+        realPayments: mergedPayments,
+        lastPaid,
+        lastPaidAmount: local.lastPaidAmount || remote.lastPaidAmount
+      });
+    });
+    // Add local charges not yet on remote (just created offline)
+    charges.filter(lc => !remoteCharges.find(rc => rc.id === lc.id)).forEach(lc => charges.push(lc));
+
+    // Merge credits: preserve paidMonths + realPayments from local
+    credits = remoteCredits.map(remote => {
+      const local = credits.find(c => c.id === remote.id);
+      if (!local) return remote;
+      const mergedPaid = [...new Set([...(remote.paidMonths||[]), ...(local.paidMonths||[])])];
+      const mergedPayments = Object.assign({}, remote.realPayments||{}, local.realPayments||{});
+      return Object.assign({}, remote, { paidMonths: mergedPaid, realPayments: mergedPayments });
+    });
+    credits.filter(lc => !remoteCredits.find(rc => rc.id === lc.id)).forEach(lc => credits.push(lc));
+
+    // Categories: remote wins but keep local if remote is empty
+    categories = remoteCats.length ? remoteCats : categories;
+
+    saveLocal();
+    setSyncState('ok');
+    toast('✓ Synchronisé');
+    render();
+
+    // Push merged data back to Sheet so it's up to date
+    pushSilent();
+
   } catch(e){
     setSyncState('err');
-    toast('⚠️ Hors ligne — données locales');
+    toast('⚠️ Hors ligne — données locales conservées');
   }
+}
+
+// Push without toast (used after merge)
+async function pushSilent(){
+  try{
+    await fetch(API,{method:'POST',body:JSON.stringify({action:'write',charges,credits,categories}),headers:{'Content-Type':'text/plain'}});
+    setSyncState('ok');
+  } catch(e){ setSyncState('err'); }
 }
 
 async function push(){
