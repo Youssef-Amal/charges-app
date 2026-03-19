@@ -457,15 +457,54 @@ const DEFAULT_CATS = [
 
 // ── INIT ──────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-  const cached = localStorage.getItem(LOCAL_KEY);
+  // Try current key first
+  let cached = localStorage.getItem(LOCAL_KEY);
+
+  // Migration — check all old keys if current is empty
+  if(!cached){
+    const OLD_KEYS = ['cpro_v5','cpro_v4','cpro_v3','cpro_data','charges_pro_v2','charges_local'];
+    for(const k of OLD_KEYS){
+      const old = localStorage.getItem(k);
+      if(old){
+        try{
+          const d = JSON.parse(old);
+          // Migrate: old format may have charges/credits at root or nested
+          const migratedCharges = d.charges || [];
+          const migratedCredits = d.credits || [];
+          const migratedCats    = d.categories || DEFAULT_CATS;
+          // Fix old cat format (stwo/ff/perso strings → objects)
+          const fixedCats = migratedCats.length ? migratedCats : DEFAULT_CATS;
+          // Migrate charges that use old cat ids
+          migratedCharges.forEach(c=>{
+            if(!fixedCats.find(cat=>cat.id===c.cat)){
+              // Map old string ids to default cats
+              if(c.cat==='pro') c.cat='stwo';
+            }
+            if(!c.realPayments) c.realPayments={};
+          });
+          migratedCredits.forEach(cr=>{
+            if(!cr.realPayments) cr.realPayments={};
+            if(!cr.paidMonths) cr.paidMonths=[];
+            if(!cr.cat) cr.cat='stwo';
+          });
+          cached = JSON.stringify({charges:migratedCharges,credits:migratedCredits,categories:fixedCats});
+          localStorage.setItem(LOCAL_KEY, cached);
+          toast('✓ Données migrées depuis la version précédente');
+          break;
+        }catch(e){ console.warn('Migration failed for key',k,e); }
+      }
+    }
+  }
+
   if(cached){
     const d = JSON.parse(cached);
     charges    = d.charges    || [];
     credits    = d.credits    || [];
-    categories = d.categories || DEFAULT_CATS;
+    categories = d.categories && d.categories.length ? d.categories : DEFAULT_CATS;
   } else {
     categories = DEFAULT_CATS;
   }
+
   showApp(); render();
   await syncAll();
 });
