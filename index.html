@@ -588,6 +588,14 @@ async function syncAll(){
 
     categories = remoteCats.length ? remoteCats : categories;
 
+    // ── DÉDUPLICATION — supprimer les doublons par id ──────────────────
+    const seenC = new Set();
+    charges = charges.filter(c => { if(seenC.has(c.id)) return false; seenC.add(c.id); return true; });
+    const seenCr = new Set();
+    credits = credits.filter(c => { if(seenCr.has(c.id)) return false; seenCr.add(c.id); return true; });
+    const seenCat = new Set();
+    categories = categories.filter(c => { if(seenCat.has(c.id)) return false; seenCat.add(c.id); return true; });
+
     // Record sync time
     lastSyncTime = Date.now();
     localStorage.setItem('cpro_last_sync', lastSyncTime);
