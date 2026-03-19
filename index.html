@@ -515,6 +515,9 @@ function showApp(){
 }
 
 // ── SYNC ──────────────────────────────────────────────────────────────────
+// Timestamp of last successful sync — used to detect "local-only" changes
+let lastSyncTime = parseInt(localStorage.getItem('cpro_last_sync')||'0');
+
 async function syncAll(){
   setSyncState('spin');
   try{
@@ -525,48 +528,86 @@ async function syncAll(){
     const d = await r.json();
     if(d.error) throw new Error(d.error);
 
-    // ── SMART MERGE — local payments always win ──────────────────────────
     const remoteCharges  = d.charges    || [];
     const remoteCredits  = d.credits    || [];
     const remoteCats     = d.categories || [];
 
-    // Merge charges: keep remote structure but preserve local realPayments + lastPaid
+    // ── MERGE STRATEGY ───────────────────────────────────────────────────
+    // Remote (Sheet) is the source of truth for structure.
+    // We only keep LOCAL data that was created/modified AFTER the last sync
+    // (i.e. changes made on THIS device since last sync).
+
     charges = remoteCharges.map(remote => {
       const local = charges.find(c => c.id === remote.id);
-      if (!local) return remote;
-      // Merge realPayments: local wins on each key
-      const mergedPayments = Object.assign({}, remote.realPayments||{}, local.realPayments||{});
-      // Keep most recent lastPaid
-      let lastPaid = remote.lastPaid;
-      if (local.lastPaid && (!lastPaid || local.lastPaid > lastPaid)) lastPaid = local.lastPaid;
+      if(!local) return remote;
+
+      // Merge realPayments: keep all keys from remote PLUS any local keys
+      // that have a payment timestamp newer than lastSyncTime
+      const merged = Object.assign({}, remote.realPayments||{});
+      Object.keys(local.realPayments||{}).forEach(key => {
+        const localTs = (local.paymentTimestamps||{})[key] || 0;
+        // Include local payment if it was made after last sync
+        if(localTs > lastSyncTime || !merged.hasOwnProperty(key)){
+          merged[key] = local.realPayments[key];
+        }
+      });
+
+      // lastPaid: keep whichever is more recent
+      let lastPaid = remote.lastPaid || null;
+      if(local.lastPaid && (!lastPaid || local.lastPaid >= lastPaid)){
+        lastPaid = local.lastPaid;
+      }
+
+      // paymentTimestamps: merge all
+      const mergedTs = Object.assign({}, remote.paymentTimestamps||{}, local.paymentTimestamps||{});
+
       return Object.assign({}, remote, {
-        realPayments: mergedPayments,
+        realPayments: merged,
+        paymentTimestamps: mergedTs,
         lastPaid,
         lastPaidAmount: local.lastPaidAmount || remote.lastPaidAmount
       });
     });
-    // Add local charges not yet on remote (just created offline)
-    charges.filter(lc => !remoteCharges.find(rc => rc.id === lc.id)).forEach(lc => charges.push(lc));
 
-    // Merge credits: preserve paidMonths + realPayments from local
+    // Keep local-only charges (created offline on this device)
+    const localOnly = charges.filter(lc => !remoteCharges.find(rc => rc.id === lc.id));
+    charges = [...remoteCharges.map(remote => {
+      const local = charges.find(c => c.id === remote.id);
+      return local || remote;
+    }), ...localOnly];
+
+    // Same for credits
     credits = remoteCredits.map(remote => {
       const local = credits.find(c => c.id === remote.id);
-      if (!local) return remote;
+      if(!local) return remote;
+      // Union of paidMonths from both
       const mergedPaid = [...new Set([...(remote.paidMonths||[]), ...(local.paidMonths||[])])];
-      const mergedPayments = Object.assign({}, remote.realPayments||{}, local.realPayments||{});
-      return Object.assign({}, remote, { paidMonths: mergedPaid, realPayments: mergedPayments });
+      // Merge realPayments: remote base + local additions after last sync
+      const merged = Object.assign({}, remote.realPayments||{});
+      Object.keys(local.realPayments||{}).forEach(key => {
+        const localTs = (local.paymentTimestamps||{})[key] || 0;
+        if(localTs > lastSyncTime || !merged.hasOwnProperty(key)){
+          merged[key] = local.realPayments[key];
+        }
+      });
+      const mergedTs = Object.assign({}, remote.paymentTimestamps||{}, local.paymentTimestamps||{});
+      return Object.assign({}, remote, { paidMonths:mergedPaid, realPayments:merged, paymentTimestamps:mergedTs });
     });
-    credits.filter(lc => !remoteCredits.find(rc => rc.id === lc.id)).forEach(lc => credits.push(lc));
+    const localOnlyCr = credits.filter(lc => !remoteCredits.find(rc => rc.id === lc.id));
+    credits = [...credits, ...localOnlyCr];
 
-    // Categories: remote wins but keep local if remote is empty
     categories = remoteCats.length ? remoteCats : categories;
+
+    // Record sync time
+    lastSyncTime = Date.now();
+    localStorage.setItem('cpro_last_sync', lastSyncTime);
 
     saveLocal();
     setSyncState('ok');
     toast('✓ Synchronisé');
     render();
 
-    // Push merged data back to Sheet so it's up to date
+    // Push merged result back so Sheet is up to date
     pushSilent();
 
   } catch(e){
@@ -998,13 +1039,19 @@ function confirmPay(){
   if(isNaN(realAmt)||realAmt<0){ toast('⚠️ Montant invalide'); return; }
   const sId=pendingPayId, sType=pendingPayType, sDate=pendingPayDate;
   closePayModal();
+  const now = Date.now();
   if(sType==='charge'){
     const c=charges.find(x=>x.id===sId); if(!c) return;
     if(!c.realPayments) c.realPayments={};
+    if(!c.paymentTimestamps) c.paymentTimestamps={};
     const mKey=viewYear+'-'+String(viewMonth+1).padStart(2,'0');
     c.realPayments[mKey]=realAmt;
+    c.paymentTimestamps[mKey]=now; // timestamp this payment
     c.lastPaid=new Date(viewYear,viewMonth,new Date(c.nextDate).getDate()).toISOString().split('T')[0];
     c.lastPaidAmount=realAmt;
+    // Update lastSyncTime so this device knows it has newer data
+    lastSyncTime = now;
+    localStorage.setItem('cpro_last_sync', lastSyncTime);
     saveLocal(); push(); render();
     const diff=Math.round(realAmt-(c.amount||0));
     toast('✓ Payé '+fDH(realAmt)+(diff>0?` (+${fDH(diff)})`:diff<0?` (-${fDH(Math.abs(diff))})` :''));
@@ -1013,7 +1060,11 @@ function confirmPay(){
     if(!cr.paidMonths) cr.paidMonths=[];
     if(!cr.paidMonths.includes(sDate)) cr.paidMonths.push(sDate);
     if(!cr.realPayments) cr.realPayments={};
+    if(!cr.paymentTimestamps) cr.paymentTimestamps={};
     cr.realPayments[sDate]=realAmt;
+    cr.paymentTimestamps[sDate]=now;
+    lastSyncTime = now;
+    localStorage.setItem('cpro_last_sync', lastSyncTime);
     saveLocal(); push(); render();
     toast('✓ Payé '+fDH(realAmt));
   }
