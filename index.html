@@ -537,64 +537,54 @@ async function syncAll(){
     // We only keep LOCAL data that was created/modified AFTER the last sync
     // (i.e. changes made on THIS device since last sync).
 
-    charges = remoteCharges.map(remote => {
-      const local = charges.find(c => c.id === remote.id);
-      if(!local) return remote;
+    // ── MERGE : Remote est la source de vérité, on fusionne les paiements locaux ──
 
-      // Merge realPayments: keep all keys from remote PLUS any local keys
-      // that have a payment timestamp newer than lastSyncTime
+    // Index des données locales AVANT toute modification
+    const localChargesMap = {};
+    charges.forEach(c => { localChargesMap[c.id] = c; });
+    const localCreditsMap = {};
+    credits.forEach(c => { localCreditsMap[c.id] = c; });
+
+    function mergePayments(remote, local) {
       const merged = Object.assign({}, remote.realPayments||{});
-      Object.keys(local.realPayments||{}).forEach(key => {
-        const localTs = (local.paymentTimestamps||{})[key] || 0;
-        // Include local payment if it was made after last sync
-        if(localTs > lastSyncTime || !merged.hasOwnProperty(key)){
-          merged[key] = local.realPayments[key];
+      const mergedTs = Object.assign({}, remote.paymentTimestamps||{});
+      Object.keys(local.realPayments||{}).forEach(function(key) {
+        const localTs  = (local.paymentTimestamps||{})[key]  || 0;
+        const remoteTs = (remote.paymentTimestamps||{})[key] || 0;
+        if(localTs >= remoteTs) {
+          merged[key]   = local.realPayments[key];
+          mergedTs[key] = localTs;
         }
       });
+      return { realPayments: merged, paymentTimestamps: mergedTs };
+    }
 
-      // lastPaid: keep whichever is more recent
+    // Charges : remote comme base, fusion paiements locaux
+    charges = remoteCharges.map(remote => {
+      const local = localChargesMap[remote.id];
+      if(!local) return remote;
+      const pay = mergePayments(remote, local);
       let lastPaid = remote.lastPaid || null;
-      if(local.lastPaid && (!lastPaid || local.lastPaid >= lastPaid)){
-        lastPaid = local.lastPaid;
-      }
-
-      // paymentTimestamps: merge all
-      const mergedTs = Object.assign({}, remote.paymentTimestamps||{}, local.paymentTimestamps||{});
-
-      return Object.assign({}, remote, {
-        realPayments: merged,
-        paymentTimestamps: mergedTs,
+      if(local.lastPaid && (!lastPaid || local.lastPaid >= lastPaid)) lastPaid = local.lastPaid;
+      return Object.assign({}, remote, pay, {
         lastPaid,
         lastPaidAmount: local.lastPaidAmount || remote.lastPaidAmount
       });
     });
+    // Ajouter charges créées offline (pas encore dans le Sheet)
+    remoteCharges.forEach(rc => { delete localChargesMap[rc.id]; });
+    Object.values(localChargesMap).forEach(lc => charges.push(lc));
 
-    // Keep local-only charges (created offline on this device)
-    const localOnly = charges.filter(lc => !remoteCharges.find(rc => rc.id === lc.id));
-    charges = [...remoteCharges.map(remote => {
-      const local = charges.find(c => c.id === remote.id);
-      return local || remote;
-    }), ...localOnly];
-
-    // Same for credits
+    // Credits : même logique
     credits = remoteCredits.map(remote => {
-      const local = credits.find(c => c.id === remote.id);
+      const local = localCreditsMap[remote.id];
       if(!local) return remote;
-      // Union of paidMonths from both
       const mergedPaid = [...new Set([...(remote.paidMonths||[]), ...(local.paidMonths||[])])];
-      // Merge realPayments: remote base + local additions after last sync
-      const merged = Object.assign({}, remote.realPayments||{});
-      Object.keys(local.realPayments||{}).forEach(key => {
-        const localTs = (local.paymentTimestamps||{})[key] || 0;
-        if(localTs > lastSyncTime || !merged.hasOwnProperty(key)){
-          merged[key] = local.realPayments[key];
-        }
-      });
-      const mergedTs = Object.assign({}, remote.paymentTimestamps||{}, local.paymentTimestamps||{});
-      return Object.assign({}, remote, { paidMonths:mergedPaid, realPayments:merged, paymentTimestamps:mergedTs });
+      const pay = mergePayments(remote, local);
+      return Object.assign({}, remote, pay, { paidMonths: mergedPaid });
     });
-    const localOnlyCr = credits.filter(lc => !remoteCredits.find(rc => rc.id === lc.id));
-    credits = [...credits, ...localOnlyCr];
+    remoteCredits.forEach(rc => { delete localCreditsMap[rc.id]; });
+    Object.values(localCreditsMap).forEach(lc => credits.push(lc));
 
     categories = remoteCats.length ? remoteCats : categories;
 
