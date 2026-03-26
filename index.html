@@ -219,6 +219,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
     <div class="hdr-logo">Charges<span>.</span>Pro</div>
     <div class="hdr-right">
       <div class="sync-pill" onclick="syncAll()"><div class="sdot" id="sdot"></div>Sync</div>
+      <div class="sync-pill" onclick="resetFromSheet()" style="font-size:10px" title="Réinitialiser depuis le Sheet">↺ Sheet</div>
       <div class="add-wrap">
         <button class="add-btn" onclick="toggleAddMenu()">＋ Ajouter ▾</button>
         <div class="add-menu" id="add-menu">
@@ -630,6 +631,31 @@ async function push(){
     if(d.error) throw new Error(d.error);
     setSyncState('ok'); toast('✓ Sauvegardé');
   } catch(e){ setSyncState('err'); toast('⚠️ Sauvegardé localement'); }
+}
+
+// Force reload from Sheet — ignores local cache completely
+async function resetFromSheet(){
+  if(!confirm('Recharger toutes les données depuis Google Sheets ?\nLes modifications non synchronisées seront perdues.')) return;
+  setSyncState('spin');
+  try{
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 12000);
+    const r = await fetch(API+'?action=read&t='+Date.now(), {signal:ctrl.signal});
+    clearTimeout(t);
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    charges    = d.charges    || [];
+    credits    = d.credits    || [];
+    categories = d.categories && d.categories.length ? d.categories : DEFAULT_CATS;
+    // Ensure all fields exist
+    charges.forEach(c=>{ if(!c.realPayments) c.realPayments={}; if(!c.paymentTimestamps) c.paymentTimestamps={}; });
+    credits.forEach(cr=>{ if(!cr.realPayments) cr.realPayments={}; if(!cr.paidMonths) cr.paidMonths=[]; if(!cr.paymentTimestamps) cr.paymentTimestamps={}; });
+    lastSyncTime = Date.now();
+    localStorage.setItem('cpro_last_sync', lastSyncTime);
+    saveLocal(); setSyncState('ok'); toast('✓ Données rechargées depuis Google Sheets'); render();
+  } catch(e){
+    setSyncState('err'); toast('⚠️ Impossible de contacter le Sheet');
+  }
 }
 
 function saveLocal(){ localStorage.setItem(LOCAL_KEY,JSON.stringify({charges,credits,categories})); }
